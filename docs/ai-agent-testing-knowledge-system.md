@@ -241,6 +241,43 @@
 | **用例实现** | 集成测试 | Service Mesh Analysis + Contract Testing | 集成用例 |
 | **用例实现** | E2E 测试 | User Flow Analysis + Selenium/Playwright | E2E 脚本 |
 
+### 2.4 AI 开发生命周期管理知识域
+
+#### 2.4.1 核心知识体系
+
+```
+📦 AI 开发生命周期管理知识域
+├── 结构化开发方法论
+│   ├── TDD 红绿重构循环（Superpowers: test-driven-development）
+│   ├── 微任务规划（2-5 分钟生成单元）
+│   ├── 苏格拉底式需求理解（测试目标确认对话）
+│   └── 两阶段代码审查（规范合规 + 质量检查）
+├── 混合程序分析
+│   ├── 静态控制流分析（CFG 构建）
+│   ├── 动态覆盖率分析（Coverage Feedback）
+│   ├── 迭代引导生成（Panta 方法论）
+│   └── 终止条件设计（覆盖率达标/最大迭代/无新增覆盖）
+├── 开源工具生态
+│   ├── Test-Agent（蚂蚁 CodeFuse）：测试生成能力层
+│   ├── Superpowers Framework：方法论参考
+│   ├── Panta/TELPA：混合分析学术前沿
+│   └── Qodo Cover：覆盖率驱动生成（已停维，参考设计）
+└── 质量保障体系
+    ├── 五层质量保障（语法→Lint→可执行→断言→人工）
+    ├── AI 生成代码质量标准
+    └── 回归测试基准项目
+```
+
+#### 2.4.2 关键知识点
+
+| 知识点 | 掌握程度要求 | 学习资源 |
+|-------|-----------|---------|
+| **Panta 迭代混合分析** | 深入理解原理 + 能实现简化版 | arXiv:2503.13580 |
+| **Superpowers TDD Skill** | 理解设计理念 + 能借鉴应用 | github.com/obra/superpowers |
+| **Test-Agent 架构** | 能集成扩展 | github.com/codefuse-ai/Test-Agent |
+| **CFG 构建** | 能使用 NetworkX 构建 | Python ast + NetworkX |
+| **覆盖率反馈闭环** | 能设计迭代终止条件 | coverage.py + pytest-cov |
+
 ---
 
 ## 三、质量智能体成长路径（2026-2030）

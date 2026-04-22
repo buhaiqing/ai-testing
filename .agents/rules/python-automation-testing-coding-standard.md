@@ -1,7 +1,7 @@
 # Python 自动化测试开发规范与最佳实践指南
 
-**版本**：v1.0  
-**最后更新**：2026-04-22  
+**版本**：v1.1  
+**最后更新**：2026-04-23  
 **适用项目**：AI Agent 认证与自动化测试（ai-testing）  
 **目标人群**：开发/AI 背景转型测试工程师
 
@@ -14,7 +14,8 @@
 3. [常见错误与反模式](#3-常见错误与反模式)
 4. [AI/ML 测试专项规范](#4-aiml-测试专项规范)
 5. [CI/CD 集成规范](#5-cicd-集成规范)
-6. [附录](#6-附录)
+6. [AI 生成代码质量标准](#6-ai-生成代码质量标准)
+7. [附录](#7-附录)
 
 ---
 
@@ -2029,9 +2030,92 @@ class AIMark:
 
 ---
 
-## 6️⃣ 附录
+## 6️⃣ AI 生成代码质量标准
 
-### 6.1 常用测试装饰器
+### 6.1 AI 生成测试代码的五层质量保障
+
+```
+Layer 1: 语法正确性 → Python AST 编译通过
+Layer 2: Lint 合规性 → ruff/mypy 检查通过
+Layer 3: 可执行性 → pytest 可运行无 import/fixture 错误
+Layer 4: 断言有效性 → 断言非恒真、覆盖关键逻辑路径
+Layer 5: 人工审核 → 可维护性、命名规范、代码风格
+```
+
+### 6.2 AI 生成测试代码的强制规范
+
+```python
+"""
+AI 生成测试代码必须遵守的规范
+"""
+
+# ✅ 必须有明确的测试意图注释
+def test_user_creation_with_valid_data():
+    """验证使用有效数据创建用户时返回正确的用户对象"""
+    ...
+
+# ❌ 禁止无意义断言
+def test_something():
+    assert True  # 恒真断言，禁止
+
+# ✅ 必须使用有意义的断言
+def test_user_age_validation():
+    with pytest.raises(ValueError):
+        User(age=-1)
+
+# ✅ AI 生成的 fixture 必须有类型标注
+@pytest.fixture
+def sample_user() -> dict:
+    return {"name": "test_user", "age": 25}
+
+# ✅ 必须包含边界值和异常场景
+@pytest.mark.parametrize("age,expected", [
+    (0, True),       # 边界：最小值
+    (150, True),     # 边界：最大值
+    (-1, False),     # 异常：负数
+    (151, False),    # 异常：超范围
+])
+def test_age_boundary(age, expected):
+    assert validate_age(age) == expected
+```
+
+### 6.3 Panta 混合分析质量闭环
+
+```python
+"""
+Panta 迭代质量闭环：静态分析 → 生成测试 → 动态覆盖率 → 迭代优化
+"""
+
+class PantaQualityLoop:
+    def __init__(self, max_iterations: int = 5, coverage_target: float = 0.80):
+        self.max_iterations = max_iterations
+        self.coverage_target = coverage_target
+
+    def run(self, source_code: str) -> dict:
+        cfg = self._build_cfg(source_code)
+        uncovered_paths = self._identify_uncovered_paths(cfg)
+        
+        for iteration in range(self.max_iterations):
+            test_code = self._generate_tests(uncovered_paths)
+            coverage = self._execute_and_measure(test_code)
+            
+            if coverage >= self.coverage_target:
+                break
+            
+            uncovered_paths = self._get_uncovered_paths(coverage)
+        
+        return {
+            "iterations": iteration + 1,
+            "final_coverage": coverage,
+            "test_files": test_code,
+        }
+```
+
+---
+
+## 7️⃣ 附录
+
+### 7.1 常用测试装饰器
 
 ```python
 """

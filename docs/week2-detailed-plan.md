@@ -16,6 +16,8 @@
 - [ ] 理解测试框架选型与适配策略
 - [ ] 掌握测试用例设计方法（边界值、异常场景、集成测试）
 - [ ] 理解 RAG 在测试生成中的应用
+- [ ] 了解 Test-Agent（蚂蚁 CodeFuse）架构与集成方式
+- [ ] 了解 Superpowers Framework 的 TDD 方法论参考价值
 
 ### 技能目标
 - [ ] 能使用 AST 解析 Python/TypeScript 代码
@@ -23,6 +25,7 @@
 - [ ] 能生成边界值测试、异常场景测试用例
 - [ ] 能实现简单的 Test Generator Agent 原型
 - [ ] 能为生成的测试代码编写质量评估报告
+- [ ] 能评估 Test-Agent 集成可行性并完成基础集成
 
 ### 产出目标
 - [ ] Test Generator Agent 原型系统
