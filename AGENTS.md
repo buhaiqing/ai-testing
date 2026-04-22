@@ -43,6 +43,10 @@
 
 ### 三、质量智能体的长远目标（2026-2030）
 
+> 💡 **两个维度的成长路径**
+> - **行业发展愿景（2026-2030）**：质量智能体技术在行业内的演进路线
+> - **个人能力培养（8 周）**：单个学习者从零到 Level 3 的成长路径
+
 ```
 🎯 质量智能体的终极愿景
 
@@ -54,10 +58,11 @@
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  2026 年（启航阶段）                                          │
-│  ├─ 质量智能体 Level 1-2：执行者 & 协助者                     │
-│  ├─ 工程师主导：定义目标 → AI 辅助                         │
-│  ├─ 重点能力：数据感知、基础分析                             │
-│  └─ 代表项目：自动化测试脚本生成、数据报告生成               │
+│  ├─ 行业水平：质量智能体 Level 1-2（大部分企业）              │
+│  ├─ 本项目目标：培养达到 Level 3 的质量智能体工程师           │
+│  ├─ 个人成长：8 周从 Level 1 进阶到 Level 3                    │
+│  ├─ 重点能力：数据感知、基础分析、测试生成、认知决策           │
+│  └─ 代表项目：自动化测试脚本生成、数据报告生成、多 Agent 协同  │
 │                                                                 │
 │  2027 年（成长阶段）                                          │
 │  ├─ 质量智能体 Level 2-3：协助者 & 合作者                     │
@@ -142,7 +147,7 @@
 │  ├─ 掌握风险等级识别（Risk Predictor Agent）               │
 │  └─ 能形成质量认知体系                                      │
 │                                                                │
-│  第 5-6 周  Level 2: 决策规划能力                         │
+│  第 5-6 周  Level 3: 决策规划能力                         │
 │  ├─ 掌握动态质量标准生成                                   │
 │  ├─ 掌握策略制定与优化（Strategy Agent）                   │
 │  └─ 能构建质量决策体系                                      │
@@ -168,61 +173,100 @@
 
 ### 六、技术架构总览
 
+
+### 六、技术架构总览
+
+#### 6.1 架构总览图
+
+```mermaid
+graph TB
+    subgraph Coordination["🎯 协调层"]
+        Orchestrator["Orchestrator<br/>质量协调智能体"]
+    end
+    
+    subgraph ProfessionalAgents["🤖 专业 Agent 层"]
+        direction TB
+        QDA["Quality Data Agent<br/>数据采集与指标计算"]
+        RPA["Risk Predictor Agent<br/>风险评估与异常检测"]
+        EA["Execution Agent<br/>测试执行与资源调度"]
+    end
+    
+    subgraph ExtensionAgents["🔌 扩展 Agent 层（按需加载）"]
+        direction TB
+        SA["Strategy Agent<br/>策略规划"]
+        RCA["Root Cause Agent<br/>根因诊断"]
+        TGA["Test Generator Agent<br/>测试代码生成"]
+        LA["Learning Agent<br/>学习进化"]
+    end
+    
+    subgraph Memory["💾 共享记忆层"]
+        VectorDB[("VectorDB<br/>(RAG 检索)")]
+        RuleEngine["Rule Engine<br/>规则管理"]
+        KG[("Knowledge Graph<br/>经验沉淀")]
+    end
+    
+    subgraph Tools["🔧 外部工具层"]
+        K8s["K8s Cruise<br/>集群巡检"]
+        DB["DB Analysis<br/>数据库分析"]
+        FinOps["FinOps<br/>成本分析"]
+        Alert["告警系统<br/>异常事件"]
+    end
+    
+    Orchestrator --> QDA
+    Orchestrator --> RPA
+    Orchestrator --> EA
+    Orchestrator -.加载.-> ExtensionAgents
+    
+    QDA <--> VectorDB
+    RPA <--> VectorDB
+    EA <--> VectorDB
+    ExtensionAgents <--> VectorDB
+    
+    QDA --> Tools
+    RPA --> Tools
+    EA --> Tools
+    
+    style Orchestrator fill:#4A90E2,color:#fff
+    style QDA fill:#7B68EE,color:#fff
+    style RPA fill:#7B68EE,color:#fff
+    style EA fill:#7B68EE,color:#fff
+    style SA fill:#20B2AA,color:#fff
+    style RCA fill:#20B2AA,color:#fff
+    style TGA fill:#20B2AA,color:#fff
+    style LA fill:#20B2AA,color:#fff
+    style VectorDB fill:#FFA07A,color:#000
+    style RuleEngine fill:#FFA07A,color:#000
+    style KG fill:#FFA07A,color:#000
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    质量智能体 (Quality Agent) 混合架构                      │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                    Orchestrator (质量协调智能体)                   │    │
-│  │  • 理解业务质量目标                                                │    │
-│  │  • 维护质量状态机                                                  │    │
-│  │  • 协调专业Agent工作流                                             │    │
-│  │  • 决策质量策略                                                    │    │
-│  └──────────────────────────────┬────────────────────────────────────┘    │
-│                                 │                                             │
-│  ┌──────────────────────────────┼────────────────────────────────────┐    │
-│  │                              │                                     │    │
-│  ▼                              ▼                                     ▼    │
-│ ┌──────────┐            ┌──────────────┐                   ┌──────────┐  │
-│ │ Quality  │◄─────────►│    Risk      │◄─────────────────►│Execution │  │
-│ │   Data   │            │  Predictor   │                   │  Agent   │  │
-│ │  Agent   │            │   Agent      │                   │          │  │
-│ └────┬─────┘            └──────┬───────┘                   └────┬─────┘  │
-│      │                          │                                 │       │
-│      │  ┌───────────────────────┼───────────────────────────┐    │       │
-│      │  │              Shared Memory Layer                   │    │       │
-│      │  │  ┌─────────┐  ┌─────────┐  ┌─────────────────────┐  │    │       │
-│      │  │  │VectorDB │  │  Rule   │  │    Knowledge Graph  │  │    │       │
-│      │  │  │ (RAG)   │  │ Engine  │  │    (经验沉淀)       │  │    │       │
-│      │  │  └─────────┘  └─────────┘  └─────────────────────┘  │    │       │
-│      │  │                                                      │    │       │
-│      │  │  短期记忆(Conversation) │ 长期记忆(Experience)       │    │       │
-│      │  └──────────────────────────────────────────────────────┘    │       │
-│      │                                                             │       │
-│      │                    ▲                    ▲                    │       │
-│      │                    │        Tool Use    │                    │       │
-│      └────────────────────┼────────────────────┼────────────────────┘       │
-│                           │                    │                              │
-│  ┌────────────────────────┴────────────────────┴───────────────────────┐  │
-│  │                         External Tools Layer                            │  │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │  │
-│  │  │ K8s Cruise  │  │ DB Analysis │  │ FinOps      │  │ Custom      │   │  │
-│  │  │ (感知层数据) │  │ (感知层数据) │  │ (感知层成本) │  │  Tools      │   │  │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘   │  │
-│  └────────────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                   扩展Agent层 (按需加载)                           │    │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────┐  │    │
-│  │  │ Strategy    │  │ Root Cause  │  │ Test        │  │Learning │  │    │
-│  │  │ Agent       │  │ Agent       │  │ Generator   │  │ Agent   │  │    │
-│  │  │ (策略规划)   │  │ (根因诊断)   │  │ (测试生成)   │  │ (学习)  │  │    │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────┘  │    │
-│  └─────────────────────────────────────────────────────────────────┘    │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+
+#### 6.2 架构说明
+
+**协调层（Orchestrator）**
+- 理解业务质量目标并分解任务
+- 维护质量状态机，跟踪任务进展
+- 协调专业 Agent 工作流
+- 根据任务需求动态加载扩展 Agent
+
+**专业 Agent 层（核心能力）**
+- **Quality Data Agent**: 采集 K8s、DB、FinOps 等质量数据
+- **Risk Predictor Agent**: 基于数据进行风险评估和异常检测
+- **Execution Agent**: 执行测试任务并反馈结果
+
+**扩展 Agent 层（按需加载）**
+- **Strategy Agent**: 动态生成测试策略和质量规划
+- **Root Cause Agent**: 智能根因诊断和故障定位
+- **Test Generator Agent**: 代码理解和测试用例生成
+- **Learning Agent**: 经验沉淀和策略优化
+
+**共享记忆层（知识存储）**
+- **VectorDB**: RAG 检索，存储测试模式和最佳实践
+- **Rule Engine**: 质量管理规则库
+- **Knowledge Graph**: 故障案例和经验沉淀
+
+**外部工具层（数据源）**
+- 现有系统集成（K8s API、Prometheus、Loki、MySQL 等）
+- 提供感知层原始数据
+
 
 ### 七、核心组件职责
 
@@ -239,19 +283,95 @@
 | **Shared Memory** | 记忆层 | 经验存储、RAG检索、规则管理 | VectorDB + Rule Engine + GraphDB |
 | **External Tools** | 工具层 | 现有系统集成 | K8s API, Prometheus, Loki, MySQL |
 
-#### 缺失Agent补充说明
+#### 缺失 Agent 补充说明
 
-| Agent | 核心能力 | 工作场景 |
-|-------|---------|---------|
-| **Strategy Agent** | 动态生成测试策略、质量规划、资源分配 | 新版本发布前自动生成测试策略 |
-| **Root Cause Agent** | 智能根因诊断、故障定位、关联分析 | 测试失败时自动分析根因 |
-| **Learning Agent** | 经验沉淀、知识图谱更新、策略优化 | 从历史任务中学习并优化策略 |
+> 以下为其他专业 Agent 的核心能力概述，详细描述详见后续章节或待创建专项文档。
 
-### 八、测试代码生成智能体系统
+**Strategy Agent（策略规划智能体）**
+- **核心能力**：动态生成测试策略、质量规划、资源分配
+- **工作场景**：新版本发布前自动生成测试策略、根据风险评估调整测试范围
+- **输入**：质量目标、风险评估结果、资源约束
+- **输出**：测试策略文档、测试范围建议、资源分配方案
+- **技术要点**：LLM + Rule Engine（基于历史数据的质量规则）
 
-#### 8.1 系统定位
+**Root Cause Agent（根因诊断智能体）**
+- **核心能力**：智能根因诊断、故障定位、关联分析
+- **工作场景**：测试失败时自动分析根因、生产异常时快速定位问题源
+- **输入**：失败日志、监控数据、变更历史
+- **输出**：根因分析报告、关联变更列表、修复建议
+- **技术要点**：LLM + Knowledge Graph（故障知识图谱）+ 多维度关联分析
+
+**Execution Agent（执行协调智能体）**
+- **核心能力**：测试执行、资源调度、结果反馈
+- **工作场景**：执行 Test Generator 生成的测试用例、调度测试资源、收集测试结果
+- **输入**：测试用例列表、执行环境配置
+- **输出**：测试执行报告、失败用例详情、性能指标
+- **技术要点**：Workflow Engine + K8s API（测试资源编排）
+
+**Learning Agent（学习进化智能体）**
+- **核心能力**：经验沉淀、知识图谱更新、策略优化
+- **工作场景**：从历史任务中学习、更新 RAG 知识库、优化测试生成策略
+- **输入**：任务执行结果、成功/失败案例、用户反馈
+- **输出**：更新的知识库条目、优化的策略规则
+- **技术要点**：RAG + Reinforcement Learning（策略优化）
+
+
+### 八、测试代码生成智能体 (Test Generator Agent)
+
+> 📖 **完整详情**：参见专项文档 [docs/QUALITY_AGENT_TEST_GENERATOR.md](./docs/QUALITY_AGENT_TEST_GENERATOR.md)
+
+#### 8.1 核心定位
+
+Test Generator Agent 是质量智能体的核心专业 Agent 之一，负责**代码理解 → 测试框架生成 → 测试用例实现**的全流程自动化。
 
 ```
+┌─────────────┐    ┌─────────────────────┐    ┌───────────────┐
+│ 1. 代码理解 │ →  │ 2. 测试框架自动生成 │ →  │3. 测试用例实现│
+│             │    │                     │    │               │
+│• 解析源码   │    │• 选择测试框架        │    │• 边界值测试  │
+│• 识别业务逻辑│    │• 生成测试脚手架     │    │• 异常场景测试│
+│• 理解依赖关系│    │• 设计测试数据模型   │    │• 集成测试用例│
+│• 抽取 API 接口 │    │• 配置测试环境       │    │• E2E 测试用例 │
+└─────────────┘    └─────────────────────┘    └───────────────┘
+```
+
+#### 8.2 技术架构
+
+| 组件 | 职责 | 技术选型 |
+|-----|------|---------|
+| **Code Parser** | 源码解析、业务逻辑识别、API 抽取 | AST Parser + LLM |
+| **Test Planner** | 测试范围确定、框架选型、数据策略 | 规则引擎 + LLM |
+| **Test Case Generator** | 边界值/异常场景/集成/E2E 用例生成 | LLM + RAG |
+| **RAG Knowledge Base** | 测试模式库、最佳实践、编码规范 | VectorDB |
+| **Code Analysis Engine** | AST 解析、数据流分析、依赖图构建 | ast/@typescript-eslint |
+
+#### 8.3 测试框架支持
+
+| 编程语言 | 单元测试 | UI 自动化 | API 测试 | E2E 测试 |
+|---------|---------|---------|--------|--------|
+| **Python** | pytest, unittest | Selenium, Playwright | requests, httpx | Playwright, Cypress |
+| **JavaScript/TS** | Jest, Mocha, Vitest | Selenium, Playwright | SuperTest, Axios | Playwright, Cypress |
+| **Java** | JUnit, TestNG | Selenium | RestAssured, Retrofit | Selenium |
+| **Go** | testing, GoConvey | Selenium | net/http | Playwright |
+| **Rust** | #[test], cargo test | Selenium | reqwest | Playwright |
+
+#### 8.4 技术可行性
+
+| 能力 | 可行性 | 技术难点 | 解决方案 |
+|-----|-------|---------|---------|
+| **代码解析** | ✅ 成熟 | AST 解析的准确性 | 成熟 Parser + LLM 辅助 |
+| **测试框架生成** | ✅ 成熟 | 不同框架的适配 | 模板引擎 + 配置抽象 |
+| **测试用例生成** | ⚠️ 部分成熟 | 边界值/异常场景覆盖 | RAG + 测试模式库 |
+| **业务逻辑理解** | ⚠️ 需要 LLM | 复杂业务逻辑理解 | Code Summarization + RAG |
+| **E2E 测试生成** | ⚠️ 需要多模态 | UI 变化适应性 | Vision Model + 智能定位 |
+
+#### 8.5 实施计划
+
+- **Week 2**: 基础能力（AST 解析、pytest/Jest 模板、基础用例生成）
+- **Week 5-6**: 增强能力（业务逻辑理解、集成测试、E2E 测试）
+- **Week 7-8**: 进化能力（经验沉淀、策略优化、多语言扩展）
+
+📖 **详细架构与实现**：[docs/QUALITY_AGENT_TEST_GENERATOR.md](./docs/QUALITY_AGENT_TEST_GENERATOR.md)
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     测试代码生成智能体 (Test Generator Agent)                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -548,14 +668,40 @@ class ExperienceMemory:
 
 ### 可量化的评估指标
 
-| 维度 | 指标 | 目标值 |
-|-----|------|-------|
-| **感知能力** | 数据采集覆盖率 | > 90% |
-| **认知能力** | 风险识别准确率 | > 85% |
-| **决策能力** | 策略生成采纳率 | > 80% |
-| **执行能力** | 任务自动化完成率 | > 95% |
-| **进化能力** | 规则自动更新占比 | > 60% |
+#### 核心指标对比
 
+| 维度 | 指标 | 行业基线 | 本项目目标 | 测量方法 |
+|-----|------|---------|-----------|---------|
+| **感知能力** | 数据采集覆盖率 | 60-70% | > 90% | 日志采集点数 / 总服务数 |
+| **感知能力** | 监控数据实时性 | 5-10 分钟 | < 2 分钟 | 数据采集到可用延迟 |
+| **认知能力** | 风险识别准确率 | 50-60% | > 85% | 预测正确次数 / 总预测次数 |
+| **认知能力** | 根因定位时间 | 30-60 分钟 | < 5 分钟 | 从告警到根因报告时间 |
+| **决策能力** | 策略生成采纳率 | 40-50% | > 80% | 人工确认通过的策略数 / 总生成数 |
+| **决策能力** | 测试范围优化率 | - | > 30% | 相比全量测试的用例减少比例 |
+| **执行能力** | 任务自动化完成率 | 70-80% | > 95% | 无需人工干预的任务比例 |
+| **执行能力** | 测试执行成功率 | 85-90% | > 98% | 成功执行的测试用例比例 |
+| **进化能力** | 规则自动更新占比 | < 20% | > 60% | 自动生成的规则 / 总规则数 |
+| **进化能力** | 知识库月度增长 | - | > 100 条/月 | 新增 RAG 条目数 |
+
+#### 指标说明
+
+**数据采集覆盖率**：反映质量智能体对系统状态的感知完整性
+- 计算公式：`已采集指标的服务数 / 系统总服务数 × 100%`
+- 行业痛点：传统监控系统通常只覆盖核心服务，忽略边缘服务
+
+**风险识别准确率**：衡量风险预测的精确度
+- 计算公式：`(真正例 + 真负例) / 总预测次数 × 100%`
+- 关键挑战：需要在召回率和精确率之间取得平衡
+
+**根因定位时间**：从告警发生到生成根因分析报告的时间
+- 传统方式：工程师需要 30-60 分钟人工排查
+- 质量智能体目标：3-5 分钟自动生成根因报告
+
+**策略生成采纳率**：反映 AI 生成策略的实用性
+- 计算公式：`人工确认通过的策略数 / AI 生成的总策略数 × 100%`
+- 优化方向：通过 RAG 和反馈循环持续提升采纳率
+
+---
 ---
 
 ## 🎓 质量智能体成长目标
@@ -581,18 +727,47 @@ class ExperienceMemory:
 ```
 ai-testing/
 ├── docs/
+│   ├── README.md                             # docs 目录索引
 │   ├── ai-agent-testing-knowledge-system.md  # 完整知识体系（质量智能体理论基础）
 │   ├── 8-week-daily-task-list.md             # 8 周成长路径（质量智能体能力演进）
-│   ├── python-automation-testing-coding-standard.md  # 编码规范（质量智能体实现标准）
-│   ├── QUALITY_AGENT_ARCHITECTURE.md          # [新增] 架构设计详解
-│   ├── QUALITY_AGENT_TEST_GENERATOR.md        # [新增] 测试代码生成智能体详解
-│   ├── QUALITY_AGENT_EVOLUTION.md             # [新增] 进化机制详解
-│   └── QUALITY_AGENT_READINESS_MODEL.md      # [新增] 成熟度评估详解
+│   ├── week1-detailed-plan.md                # 第 1 周详细计划
+│   ├── week2-detailed-plan.md                # 第 2 周详细计划
+│   ├── week3-detailed-plan.md                # 第 3 周详细计划
+│   ├── week4-detailed-plan.md                # 第 4 周详细计划
+│   ├── week5-detailed-plan.md                # 第 5 周详细计划
+│   ├── week6-detailed-plan.md                # 第 6 周详细计划
+│   ├── week7-detailed-plan.md                # 第 7 周详细计划
+│   ├── week8-detailed-plan.md                # 第 8 周详细计划
+│   │
+│   ├── QUALITY_AGENT_TEST_GENERATOR.md       # ✅ 测试代码生成智能体详解（已创建）
+│   ├── QUALITY_AGENT_ARCHITECTURE.md         # 🔜 架构设计详解（待创建）
+│   ├── QUALITY_AGENT_EVOLUTION.md            # 🔜 进化机制详解（待创建）
+│   └── QUALITY_AGENT_READINESS_MODEL.md      # 🔜 成熟度评估详解（待创建）
+│
 ├── .agents/
-│   └── rules/                                # 项目规则与规范
-├── AGENTS.md                                  # 本文件（质量智能体成长计划）
-└── README.md
+│   └── rules/
+│       └── python-automation-testing-coding-standard.md  # 编码规范（质量智能体实现标准）
+│
+├── AGENTS.md                                  # 本文件（质量智能体架构与培养指南）
+├── README.md                                  # 项目说明（快速入门）
+└── LICENSE
 ```
+
+### 文档说明
+
+| 文档 | 状态 | 说明 |
+|-----|------|------|
+| [AGENTS.md](./AGENTS.md) | ✅ 已完成 | 质量智能体完整架构与实现指南 |
+| [README.md](./README.md) | ✅ 已完成 | 项目说明与快速入门 |
+| [docs/ai-agent-testing-knowledge-system.md](./docs/ai-agent-testing-knowledge-system.md) | ✅ 已完成 | 质量智能体完整知识体系 |
+| [docs/8-week-daily-task-list.md](./docs/8-week-daily-task-list.md) | ✅ 已完成 | 8 周成长路径详细任务清单 |
+| [docs/week1-detailed-plan.md](./docs/week1-detailed-plan.md) | ✅ 已完成 | 第 1 周详细计划 |
+| [docs/week2-detailed-plan.md](./docs/week2-detailed-plan.md) | ✅ 已完成 | 第 2 周详细计划 |
+| [docs/QUALITY_AGENT_TEST_GENERATOR.md](./docs/QUALITY_AGENT_TEST_GENERATOR.md) | ✅ 已完成 | 测试代码生成智能体详解 |
+| [docs/week3-8-detailed-plan.md](./docs/) | ✅ 已完成 | 第 3-8 周详细计划 |
+| [docs/QUALITY_AGENT_ARCHITECTURE.md](./docs/QUALITY_AGENT_ARCHITECTURE.md) | 🔜 待创建 | 架构设计详解 |
+| [docs/QUALITY_AGENT_EVOLUTION.md](./docs/QUALITY_AGENT_EVOLUTION.md) | 🔜 待创建 | 进化机制详解 |
+| [docs/QUALITY_AGENT_READINESS_MODEL.md](./docs/QUALITY_AGENT_READINESS_MODEL.md) | 🔜 待创建 | 成熟度评估详解 |
 
 ---
 
@@ -670,6 +845,140 @@ ai-testing/
 
 ---
 
+
+
+## ⚠️ 技术风险与缓解策略
+
+### 技术风险清单
+
+| 风险 | 可能性 | 影响 | 缓解策略 | 状态 |
+|-----|-------|------|---------|------|
+| **LLM 响应延迟 > 10 秒** | 高 | 用户体验差 | 流式响应 + 进度提示 + 本地缓存 | ✅ 已缓解 |
+| **RAG 检索准确率 <70%** | 中 | 决策质量差 | 多路召回 + 重排序 + 混合检索 | ✅ 已缓解 |
+| **Agent 执行死循环** | 低 | 资源浪费 | 超时熔断 + 最大迭代次数 + 人工介入 | ✅ 已缓解 |
+| **测试代码质量不稳定** | 中 | 维护成本高 | Lint 检查 + 人工审核流程 + 代码评审 | 🔄 进行中 |
+| **E2E 测试定位失败** | 中 | 测试不稳定 | Vision Model + 多重定位策略 + 自愈机制 | 🔄 进行中 |
+| **知识图谱更新延迟** | 低 | 策略滞后 | 增量更新 + 异步处理 + 定期全量刷新 | ✅ 已缓解 |
+
+### 风险详解
+
+#### 1. LLM 响应延迟风险
+
+**问题描述**：复杂任务可能导致 LLM 响应时间超过 10 秒，影响用户体验
+
+**缓解措施**：
+- ✅ **流式响应**：使用 streaming 模式，逐步返回结果
+- ✅ **进度提示**：每 2-3 秒更新任务进度（"正在分析代码..." → "正在生成测试..."）
+- ✅ **本地缓存**：相似查询使用缓存结果（Redis，TTL=24h）
+- ✅ **异步执行**：长任务异步处理，完成后通知
+
+**预期效果**：用户感知延迟从 10-30 秒降至 2-3 秒（首次响应）
+
+#### 2. RAG 检索准确率风险
+
+**问题描述**：向量检索可能返回不相关的测试模式或最佳实践
+
+**缓解措施**：
+- ✅ **多路召回**：同时使用向量检索 + BM25 + 关键词检索
+- ✅ **重排序**：使用 Cross-Encoder 对召回结果重排序
+- ✅ **混合检索**：`最终分数 = 0.7×向量相似度 + 0.3×BM25 分数`
+- ✅ **元数据过滤**：按编程语言、测试框架、业务领域过滤
+
+**预期效果**：Top-3 检索准确率从 60% 提升至 85%+
+
+#### 3. Agent 执行死循环风险
+
+**问题描述**：Agent 可能在遇到错误时反复重试，导致资源浪费
+
+**缓解措施**：
+- ✅ **超时熔断**：单次任务最大执行时间 5 分钟
+- ✅ **最大迭代次数**：同一操作最多重试 3 次
+- ✅ **异常升级**：3 次失败后自动升级，人工介入
+- ✅ **状态监控**：实时监控 Agent 状态，异常自动告警
+
+**预期效果**：死循环发生率降至 0.1% 以下
+
+#### 4. 测试代码质量风险
+
+**问题描述**：生成的测试代码可能不符合项目规范或难以维护
+
+**缓解措施**：
+- 🔄 **Lint 检查**：集成 Flake8/ESLint 等工具自动检查
+- 🔄 **人工审核流程**：关键测试用例需人工确认后再提交
+- 🔄 **代码评审**：定期 Review 生成的测试代码，优化生成策略
+
+**预期效果**：代码审查通过率从 60% 提升至 90%+
+
+#### 5. E2E 测试定位风险
+
+**问题描述**：UI 元素变化导致测试定位失败，测试不稳定
+
+**缓解措施**：
+- 🔄 **Vision Model**：使用多模态模型识别 UI 元素
+- 🔄 **多重定位策略**：XPath + CSS + Text + Image 多模式定位
+- 🔄 **自愈机制**：定位失败时自动尝试替代定位策略
+
+**预期效果**：E2E 测试稳定性从 70% 提升至 95%+
+
+---
+## 🚀 快速开始：构建你的第一个 Agent
+
+### 1. 环境准备
+
+```bash
+# 安装基础依赖
+pip install langchain langchain-openai milvus-client pyyaml
+
+# 配置环境变量
+export OPENAI_API_KEY="your-api-key"
+export MILVUS_HOST="localhost"
+export MILVUS_PORT="19530"
+```
+
+### 2. 创建 Quality Data Agent 示例
+
+```python
+from langchain.agents import AgentExecutor, Tool
+from langchain_openai import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate
+
+class QualityDataAgent:
+    """质量数据采集智能体"""
+    
+    def __init__(self):
+        self.llm = ChatOpenAI(model="gpt-4", temperature=0.3)
+    
+    def k8s_cruise(self, cluster_name: str) -> str:
+        """K8s 集群巡检"""
+        return f"✅ {cluster_name} 健康度：98%, CPU: 45%, 内存：72%"
+    
+    def analyze_quality(self, query: str) -> str:
+        """分析质量状态"""
+        prompt = ChatPromptTemplate.from_template(
+            "你是质量数据智能体，请分析:\n{query}"
+        )
+        chain = prompt | self.llm
+        return chain.invoke({"query": query}).content
+
+if __name__ == "__main__":
+    agent = QualityDataAgent()
+    result = agent.analyze_quality("分析 production-qa 集群")
+    print(result)
+```
+
+### 3. 运行并验证
+
+```bash
+python quality_data_agent.py
+```
+
+### 4. 下一步
+
+- 📖 阅读 [docs/week1-detailed-plan.md](./docs/week1-detailed-plan.md) 开始第 1 周学习
+- 🔧 查看 [docs/QUALITY_AGENT_TEST_GENERATOR.md](./docs/QUALITY_AGENT_TEST_GENERATOR.md) 了解 Test Generator
+- 🏗️ 参考 [docs/ai-agent-testing-knowledge-system.md](./docs/ai-agent-testing-knowledge-system.md) 学习完整知识体系
+
+---
 ## 🚀 学习路径指南
 
 ### Capstone 交付物标准
