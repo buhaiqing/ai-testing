@@ -101,7 +101,7 @@
 | **Test Planner**           | 测试范围确定、框架选型、数据策略    | 规则引擎 + LLM 判断                         |
 | **Test Case Generator**    | 边界值/异常场景/集成/E2E用例生成 | LLM + RAG 检索 + Test-Agent（集成扩展）       |
 | **RAG Knowledge Base**     | 测试模式库、最佳实践、编码规范     | VectorDB (Milvus/LanceDB)             |
-| **Code Analysis Engine**   | AST 解析、数据流分析、依赖图构建  | ast/@typescript-eslint + NetworkX     |
+| **Code Analysis Engine**   | AST 解析、数据流分析、依赖图构建  | ast/@typescript-eslint/@babel/parser + NetworkX |
 | **Hybrid Analysis Engine** | 静态控制流 + 动态覆盖率迭代分析   | Panta 方法论（CFG + Coverage Feedback）    |
 
 ***
@@ -112,10 +112,15 @@
 
 | 具体功能         | 技术实现                                                     | 输出     |
 | ------------ | -------------------------------------------------------- | ------ |
-| **源码解析**     | AST Parser (Python: ast, TypeScript: @typescript-eslint) | 代码结构树  |
+| **源码解析**     | AST Parser (Python: ast, JavaScript: @babel/parser, TypeScript: @typescript-eslint) | 代码结构树  |
 | **业务逻辑识别**   | LLM + Code Summarization                                 | 业务逻辑描述 |
 | **API 接口抽取** | Endpoint Detection + Signature Analysis                  | API 清单 |
 | **依赖关系分析**   | Import/Require Graph + Call Graph                        | 依赖图谱   |
+
+> **💡 JavaScript 解析器选型说明**：
+> - **@babel/parser**：纯 JavaScript 项目的首选，支持 ES2025 及 JSX，适合 ExtJS、jQuery 等传统前端框架
+> - **@typescript-eslint/parser**：TypeScript 项目专用，同时兼容 JavaScript 文件
+> - **acorn**：轻量级备选，适合快速解析和工具链集成
 
 ### 3.2 框架生成能力
 
@@ -143,6 +148,7 @@
 | 编程语言           | 单元测试              | UI 自动化               | API 测试           | E2E 测试              |
 | -------------- | ----------------- | -------------------- | ---------------- | ------------------- |
 | **Python**     | pytest, unittest  | Selenium, Playwright | requests, httpx  | Playwright, Cypress |
+| **JavaScript** | Jest, Mocha       | Selenium, Playwright | SuperTest, Axios | Playwright, Cypress |
 | **TypeScript** | Jest, Vitest      | Playwright           | SuperTest, Axios | Playwright, Cypress |
 | **Go**         | testing, GoConvey | Playwright           | net/http         | Playwright          |
 
@@ -156,13 +162,13 @@
         ┌─────────────┬───────┼───────┐
         │             │       │       │
         ▼             ▼       ▼       ▼
-    ┌────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐
-    │ Python │ │TypeScript│ │   Go    │ │  ...  │
-    └───┬────┘ └────┬─────┘ └───┬─────┘ └───┬─────┘
-        │            │           │           │
-        ▼            ▼           ▼           ▼
-     pytest       Jest        Vitest     testing
-    unittest     Mocha        Jest      GoConvey
+    ┌────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐
+    │ Python │ │JavaScript│ │TypeScript│ │   Go    │ │  ...  │
+    └───┬────┘ └────┬─────┘ └────┬─────┘ └───┬─────┘ └───┬─────┘
+        │            │            │           │           │
+        ▼            ▼            ▼           ▼           ▼
+     pytest       Jest         Jest       Vitest     testing
+    unittest     Mocha        Vitest       ...      GoConvey
 
        │            │           │
        └────────────┴───────────┘
@@ -180,6 +186,185 @@
       │测试 │   │自动化 │ │测试│ │测试│  │ 测试   │
       └─────┘   └────────┘ └────┘ └────┘  └────────┘
 ```
+
+### 4.3 前端框架适配性评估
+
+针对主流前端框架的测试代码生成适配性进行全面评估，为技术选型提供决策依据。
+
+#### 4.3.1 评估维度说明
+
+| 评估维度 | 权重 | 评估标准 |
+|---------|------|---------|
+| **架构兼容性** | 25% | AST解析难度、模块化程度、元数据可获取性 |
+| **API适配难度** | 20% | 组件接口识别、事件机制理解、状态管理复杂度 |
+| **组件复用性** | 15% | 组件化程度、测试可隔离性、Mock难度 |
+| **性能预期** | 15% | 生成速度、测试执行效率、资源占用 |
+| **开发成本** | 15% | 学习曲线、工具链成熟度、调试难度 |
+| **生态支持** | 10% | 社区活跃度、测试工具丰富度、文档完善度 |
+
+#### 4.3.2 ExtJS 适配评估
+
+| 评估维度 | 评级 | 评分 | 详细说明 |
+|---------|------|------|---------|
+| **架构兼容性** | 🟡 中 | 6/10 | • 类继承体系复杂，AST解析需处理Ext.define()模式<br>• 配置对象模式（Config Objects）增加理解难度<br>• 混合JavaScript/CSS/XML（XTemplate）需多文件解析 |
+| **API适配难度** | 🟡 中 | 5/10 | • 组件生命周期钩子隐式调用，难以自动识别<br>• 事件系统（Ext.util.Observable）需自定义解析规则<br>• Store/Model数据层与UI层耦合度高 |
+| **组件复用性** | 🔴 低 | 4/10 | • 组件高度封装，内部状态难以Mock<br>• 依赖Ext全局对象，测试隔离困难<br>• 自定义组件继承链深，难以实例化 |
+| **性能预期** | 🟢 高 | 7/10 | • 纯JavaScript解析速度快<br>• 无编译步骤，源码即执行代码<br>• 但组件渲染重，E2E测试执行慢 |
+| **开发成本** | 🟡 中 | 5/10 | • 学习曲线陡峭，需理解Ext类系统<br>• 调试工具Sencha Inspector商业软件<br>• 社区萎缩，资料较少（2015年后停止维护） |
+| **生态支持** | 🔴 低 | 3/10 | • 官方测试工具Sencha Test商业授权<br>• 开源替代方案少，社区活跃度低<br>• 与现代CI/CD工具链集成困难 |
+
+**综合适配评级：🟡 中低（5.0/10）**
+
+**适配策略建议**：
+1. **解析器选择**：使用 `@babel/parser` + `babel-plugin-extjs` 插件识别Ext.define模式
+2. **测试框架**：推荐 Jest + `jest-extjs` 社区适配器，或降级使用 Selenium 做E2E
+3. **Mock策略**：必须Mock Ext全局对象，建议使用 `jest.mock('extjs')` 方式
+4. **优先级建议**：遗留系统维护阶段使用，新项目不推荐投入大量适配资源
+
+**典型挑战与解决方案**：
+| 挑战 | 解决方案 |
+|------|---------|
+| Ext.define() 动态类定义 | 预执行脚本收集类定义元数据 |
+| XTemplate 模板解析 | 使用正则提取模板变量，结合LLM理解渲染逻辑 |
+| Store数据依赖 | 构建Mock Store工厂，隔离后端依赖 |
+| 组件生命周期复杂 | 建立生命周期钩子映射表，自动生成setup/teardown |
+
+---
+
+#### 4.3.3 Vue.js 适配评估
+
+| 评估维度 | 评级 | 评分 | 详细说明 |
+|---------|------|------|---------|
+| **架构兼容性** | 🟢 高 | 9/10 | • SFC单文件组件结构清晰，template/script/style分离<br>• @vue/compiler-sfc提供官方AST解析支持<br>• 响应式系统（ref/reactive）有明确API标记 |
+| **API适配难度** | 🟢 高 | 8/10 | • Composition API函数式风格，接口清晰<br>• Props/Emits/Slots有明确类型定义（TS支持好）<br>• Vue3组合式API比Options API更易解析 |
+| **组件复用性** | 🟢 高 | 9/10 | • 组件化设计天然支持单元测试<br>• provide/inject可Mock，依赖注入清晰<br>• Pinia状态管理可独立测试 |
+| **性能预期** | 🟢 高 | 8/10 | • 编译时优化，运行时轻量<br>• Vitest测试框架专为Vue优化，执行快<br>• 组件级HMR支持快速迭代 |
+| **开发成本** | 🟢 高 | 9/10 | • 中文文档完善，社区活跃<br>• Vue Test Utils官方测试工具成熟<br>• Vite生态工具链现代化 |
+| **生态支持** | 🟢 高 | 9/10 | • 官方Vue Test Utils + Vitest最佳实践<br>• Cypress/Playwright对Vue支持优秀<br>• 大量社区测试插件和示例 |
+
+**综合适配评级：🟢 高（8.7/10）**
+
+**适配策略建议**：
+1. **解析器选择**：`@vue/compiler-sfc` 解析SFC结构 + `@babel/parser` 处理script逻辑
+2. **测试框架**：**Vitest**（首选）+ `@vue/test-utils`，或 Cypress Component Testing
+3. **测试策略**：
+   - 单元测试：VTU + Vitest，测试组件逻辑
+   - 集成测试：MSW Mock API + Pinia 状态管理
+   - E2E测试：Playwright/Cypress，利用Vue DevTools定位
+4. **代码生成重点**：
+   - 自动生成 `mount()` 参数和 `props` 类型
+   - 识别 `emits` 定义生成事件触发测试
+   - 解析 `v-if/v-for` 生成分支覆盖测试
+
+**代码生成示例**：
+```javascript
+// 输入：Vue SFC 组件
+// 输出：Vitest + Vue Test Utils 测试代码
+import { describe, it, expect } from 'vitest'
+import { mount } from '@vue/test-utils'
+import UserCard from './UserCard.vue'
+
+describe('UserCard', () => {
+  it('renders user name correctly', () => {
+    const wrapper = mount(UserCard, {
+      props: { user: { name: 'John', age: 30 } }
+    })
+    expect(wrapper.text()).toContain('John')
+  })
+  
+  it('emits edit event when button clicked', async () => {
+    const wrapper = mount(UserCard)
+    await wrapper.find('button').trigger('click')
+    expect(wrapper.emitted()).toHaveProperty('edit')
+  })
+})
+```
+
+---
+
+#### 4.3.4 React.js 适配评估
+
+| 评估维度 | 评级 | 评分 | 详细说明 |
+|---------|------|------|---------|
+| **架构兼容性** | 🟢 高 | 9/10 | • JSX语法标准化，@babel/parser原生支持<br>• 函数组件+Hooks模式结构清晰<br>• React DevTools提供组件元数据 |
+| **API适配难度** | 🟢 高 | 8/10 | • Hooks规则（useXxx命名）易于识别<br>• Props类型通过PropTypes/TypeScript可获取<br>• Context API模式固定，便于Mock |
+| **组件复用性** | 🟢 高 | 8/10 | • 函数组件纯逻辑，易于单元测试<br>• Hooks可独立测试（React Hooks Testing Library）<br>• 但高阶组件(HOC)和Render Props增加复杂度 |
+| **性能预期** | 🟢 高 | 8/10 | • Jest + React Testing Library生态成熟<br>• 虚拟DOM测试无需真实渲染，速度快<br>• 但复杂组件树渲染仍消耗资源 |
+| **开发成本** | 🟢 高 | 8/10 | • 英文文档完善，社区极其活跃<br>• Testing Library理念清晰（测行为非实现）<br>• 但Hooks心智模型需学习 |
+| **生态支持** | 🟢 高 | 9/10 | • Jest + React Testing Library行业标准<br>• MSW(Mock Service Worker)对React支持优秀<br>• Storybook交互测试生态完善 |
+
+**综合适配评级：🟢 高（8.3/10）**
+
+**适配策略建议**：
+1. **解析器选择**：`@babel/parser` 配置 JSX 插件，识别 Hooks 调用模式
+2. **测试框架**：**Jest** + **React Testing Library**（首选），或 Vitest
+3. **测试策略**：
+   - 单元测试：RTL + Jest，遵循"测行为非实现"原则
+   - Hooks测试：`@testing-library/react-hooks` 或 Vitest 内置支持
+   - E2E测试：Playwright/Cypress，利用React Selector定位
+4. **代码生成重点**：
+   - 解析 JSX 生成 render() 参数
+   - 识别 useEffect 依赖数组生成副作用测试
+   - 分析 Context Provider 生成 Mock 包装器
+
+**代码生成示例**：
+```javascript
+// 输入：React Function Component + Hooks
+// 输出：Jest + React Testing Library 测试代码
+import { render, screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import UserProfile from './UserProfile'
+
+describe('UserProfile', () => {
+  it('displays user information', () => {
+    render(<UserProfile userId={123} />)
+    expect(screen.getByText(/User Profile/i)).toBeInTheDocument()
+  })
+  
+  it('fetches user data on mount', async () => {
+    render(<UserProfile userId={123} />)
+    // useEffect 依赖 [userId] 触发数据获取
+    expect(await screen.findByText('John Doe')).toBeInTheDocument()
+  })
+  
+  it('handles update button click', async () => {
+    const user = userEvent.setup()
+    render(<UserProfile userId={123} />)
+    await user.click(screen.getByRole('button', { name: /update/i }))
+    expect(mockUpdateUser).toHaveBeenCalledWith(123)
+  })
+})
+```
+
+---
+
+#### 4.3.5 框架对比总结与选型建议
+
+| 框架 | 综合评级 | 推荐指数 | 适用场景 | 投入优先级 |
+|------|---------|---------|---------|-----------|
+| **Vue.js** | 🟢 高 (8.7) | ⭐⭐⭐⭐⭐ | 新项目、中文团队、快速迭代 | **P0 - 优先全面支持** |
+| **React.js** | 🟢 高 (8.3) | ⭐⭐⭐⭐⭐ | 大型应用、英文团队、生态丰富 | **P0 - 优先全面支持** |
+| **ExtJS** | 🟡 中低 (5.0) | ⭐⭐ | 遗留系统维护、企业级老旧项目 | **P2 - 有限支持** |
+
+**技术投入建议**：
+
+1. **Phase 1（MVP）**：优先支持 Vue 3 + React 18
+   - 覆盖 Composition API 和 Hooks 模式
+   - 实现基础组件测试生成
+
+2. **Phase 2（增强）**：
+   - Vue 2 选项式 API 兼容
+   - React Class 组件支持
+   - ExtJS 基础适配（按需投入）
+
+3. **Phase 3（完善）**：
+   - 框架特定最佳实践集成
+   - 性能优化和缓存策略
+
+**风险预警**：
+- ⚠️ ExtJS 社区已停止维护，建议仅做维护性支持，不投入新功能开发
+- ⚠️ Vue 2 将于 2024 年底停止维护，建议引导用户升级至 Vue 3
+- ✅ React/Vue 生态活跃，可长期投入
 
 ***
 
@@ -530,7 +715,7 @@ class MultimodalLocator:
 
 - LLM API：GPT-4 / Claude 3.5（约 100 万 token/天）
 - Playwright 浏览器环境
-- TypeScript AST Parser（@typescript-eslint）
+- JavaScript/TypeScript AST Parser（@babel/parser、@typescript-eslint）
 
 ***
 
@@ -542,7 +727,7 @@ class MultimodalLocator:
 | ----------------- | --------------- | ------------------------------------------- | ------------------ |
 | Week7 Day1-2 (6h) | 经验沉淀机制          | 失败用例 → 规则库自动更新 Pipeline                     | 规则库每周新增 ≥ 10 条有效规则 |
 | Week7 Day3-4 (6h) | 策略优化闭环          | Execution Agent 反馈 → 生成策略调整                 | 二次生成通过率提升 ≥ 15%    |
-| Week7 Day5 (4h)   | 多语言扩展           | TypeScript (Jest/Vitest) / Go (testing) 适配器 | 各语言生成语法正确率 ≥ 85%   |
+| Week7 Day5 (4h)   | 多语言扩展           | JavaScript (Jest/Mocha) / TypeScript (Jest/Vitest) / Go (testing) 适配器 | 各语言生成语法正确率 ≥ 85%   |
 | Week8 Day1-2 (4h) | **多模态视觉推理集成** | **GLM-5V-Turbo 视觉定位 + 自愈机制**                 | **E2E 定位成功率 ≥ 90%**    |
 
 **资源需求（2026 年最新）**：
@@ -556,7 +741,7 @@ class MultimodalLocator:
     - 全模态能力（图/音/视），支持语音指令驱动测试
   - **免费版：GLM-4.6V-Flash**（智谱 AI）
     - 零成本 POC 验证，限制 30 并发
-- 多语言运行时：Python 3.10+, TypeScript (Node.js 18+), Go 1.21+
+- 多语言运行时：Python 3.10+, JavaScript/TypeScript (Node.js 18+), Go 1.21+
 - 知识图谱存储：Neo4j / NetworkX
 
 **技术选型说明**：
@@ -572,7 +757,7 @@ class MultimodalLocator:
 | **M2: 多类型覆盖**  | Week 5 末 | 单元 + 集成 + API 测试生成          | 覆盖 ≥ 3 种测试类型    |
 | **M3: E2E 突破** | Week 6 末 | Playwright E2E 测试生成         | 简单 CRUD 流程自动化   |
 | **M4: 进化闭环**   | Week 7 末 | 反馈驱动的策略优化                   | 二次生成通过率提升 ≥ 15% |
-| **M5: 多语言就绪**  | Week 8 末 | Python + TypeScript + Go 支持 | 各语言 ≥ 85% 语法正确率 |
+| **M5: 多语言就绪**  | Week 8 末 | Python + JavaScript + TypeScript + Go 支持 | 各语言 ≥ 85% 语法正确率 |
 
 ***
 
@@ -603,7 +788,7 @@ class MultimodalLocator:
 
 **Phase 2 成功标准（增强）**：
 
-- ✅ 支持 Python + TypeScript 双语言
+- ✅ 支持 Python + JavaScript/TypeScript 双语言
 - ✅ 覆盖单元 + 集成 + API + E2E 四种测试类型
 - ✅ Lint 通过率 ≥ 85%，断言有效率 ≥ 75%
 - ✅ E2E 测试能为简单 CRUD 页面生成可运行脚本
@@ -611,7 +796,7 @@ class MultimodalLocator:
 **Phase 3 成功标准（进化）**：
 
 - ✅ 反馈驱动的策略优化闭环运行
-- ✅ 支持 Python + TypeScript + Go 三语言
+- ✅ 支持 Python + JavaScript + TypeScript + Go 四语言
 - ✅ 二次生成通过率提升 ≥ 15%
 - ✅ E2E 定位成功率 ≥ 90%（含自愈机制）
 
@@ -655,7 +840,7 @@ class MultimodalLocator:
 | -------------- | --- | ----------- | --------------------------------------- |
 | **Phase 1 延期** | 中   | 后续阶段推迟      | MVP 范围收缩：先支持 Python 单元测试，其他后续迭代         |
 | **E2E 生成卡点**   | 高   | Phase 2 延期  | 降级方案：先支持 API 测试，E2E 推迟到 Phase 3         |
-| **多语言适配超期**    | 中   | Phase 3 不完整 | 优先保证 Python + TypeScript，Go/Rust 按优先级排期 |
+| **多语言适配超期**    | 中   | Phase 3 不完整 | 优先保证 Python + JavaScript/TypeScript，Go/Rust 按优先级排期 |
 | **LLM 成本超预算**  | 中   | 无法持续运行      | 本地小模型辅助 + 缓存策略 + 按需调用大模型                |
 
 ***
