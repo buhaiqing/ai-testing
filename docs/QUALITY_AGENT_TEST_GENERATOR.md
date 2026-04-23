@@ -100,6 +100,249 @@
 | **Code Parser**            | 源码解析、业务逻辑识别、API 抽取  | LLM + AST Parser + Code Summarization |
 | **Test Planner**           | 测试范围确定、框架选型、数据策略    | 规则引擎 + LLM 判断                         |
 | **Test Case Generator**    | 边界值/异常场景/集成/E2E用例生成 | LLM + RAG 检索 + Test-Agent（集成扩展）       |
+
+#### Test Planner 核心作用与示例
+
+**核心作用**：作为测试代码生成的"决策中枢"，Test Planner 将 Code Parser 解析的源码结构转化为可执行的测试策略，决定**测什么**、**用什么测**、**怎么测**。
+
+**决策流程**：
+```
+源码分析结果 → 规则引擎（框架映射/复杂度评估） → LLM判断（业务场景/边界识别） → 测试计划
+```
+
+---
+
+**示例 1：ExtJS 组件测试规划**
+
+*输入：ExtJS UserGrid 组件源码*
+```javascript
+Ext.define('MyApp.view.UserGrid', {
+    extend: 'Ext.grid.Panel',
+    requires: ['MyApp.store.UserStore'],
+    
+    initComponent: function() {
+        this.store = Ext.create('MyApp.store.UserStore');
+        this.columns = [
+            { text: 'Name', dataIndex: 'name' },
+            { text: 'Email', dataIndex: 'email' }
+        ];
+        this.callParent();
+    },
+    
+    onRefresh: function() {
+        this.store.load();
+    }
+});
+```
+
+*Test Planner 输出：*
+```yaml
+测试计划:
+  框架选择: 
+    主框架: Jest + jest-extjs-adapter
+    辅助: Sinon.js (Mock/Stub)
+  
+  测试范围:
+    - 组件实例化测试: 验证 Ext.define 类创建成功
+    - Store依赖测试: 验证 UserStore 正确加载
+    - 列配置测试: 验证 columns 数组配置
+    - 事件处理测试: 验证 onRefresh 方法调用 store.load()
+  
+  Mock策略:
+    - Ext全局对象: jest.mock('extjs')
+    - UserStore: 创建 Mock Store 工厂
+    - 渲染环境: jsdom + ExtJS 适配器
+  
+  测试文件组织:
+    - 路径: tests/extjs/views/UserGrid.test.js
+    - 命名: UserGrid.test.js
+    - 结构: describe('UserGrid') + 嵌套 describe('方法名')
+  
+  特殊考虑:
+    - ExtJS 组件生命周期复杂，需等待 render 完成
+    - Store 异步加载需使用 async/await
+    - 组件销毁需手动 cleanup 避免内存泄漏
+```
+
+---
+
+**示例 2：Vue.js 组件测试规划**
+
+*输入：Vue 3 UserCard.vue SFC*
+```vue
+<template>
+  <div class="user-card">
+    <h3>{{ user.name }}</h3>
+    <p>{{ user.email }}</p>
+    <button @click="handleEdit">Edit</button>
+    <span v-if="user.isAdmin" class="badge">Admin</span>
+  </div>
+</template>
+
+<script setup>
+import { computed } from 'vue'
+
+const props = defineProps({
+  user: { type: Object, required: true }
+})
+
+const emit = defineEmits(['edit'])
+
+const handleEdit = () => {
+  emit('edit', props.user.id)
+}
+</script>
+```
+
+*Test Planner 输出：*
+```yaml
+测试计划:
+  框架选择:
+    主框架: Vitest (首选) 或 Jest
+    工具: @vue/test-utils (VTU)
+    类型: @testing-library/vue (可选)
+  
+  测试范围:
+    单元测试:
+      - Props验证: user对象必需性、类型检查
+      - 渲染测试: 用户名/邮箱正确显示
+      - 条件渲染: v-if="user.isAdmin" 分支覆盖
+      - 事件测试: 点击Edit按钮触发edit事件
+      - 事件参数: 验证emit携带user.id
+    
+    集成测试:
+      - 父组件传递props → 子组件渲染
+      - 子组件emit事件 → 父组件响应
+  
+  数据策略:
+    Mock数据:
+      - 普通用户: { id: 1, name: 'John', email: 'john@example.com', isAdmin: false }
+      - 管理员: { id: 2, name: 'Admin', email: 'admin@example.com', isAdmin: true }
+      - 边界值: name为空字符串、email格式错误
+  
+  测试文件组织:
+    - 路径: src/components/__tests__/UserCard.spec.ts
+    - 命名: 与组件同名 + .spec.ts
+    - 结构: 
+        describe('UserCard', () => {
+          it('renders user info correctly')
+          it('displays admin badge when user is admin')
+          it('emits edit event with user id on button click')
+        })
+  
+  特殊考虑:
+    - 使用 mount() 而非 shallowMount() 测试真实渲染
+    - 优先使用 getByRole/getByText 查询DOM
+    - 事件触发使用 fireEvent 或 userEvent
+```
+
+---
+
+**示例 3：React.js 组件测试规划**
+
+*输入：React UserProfile + Hooks*
+```jsx
+import React, { useState, useEffect } from 'react';
+import { fetchUser } from './api';
+
+export function UserProfile({ userId }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchUser(userId)
+      .then(data => {
+        setUser(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, [userId]);
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
+  
+  return (
+    <div className="user-profile">
+      <h2>{user.name}</h2>
+      <button onClick={() => handleUpdate(user.id)}>Update</button>
+    </div>
+  );
+}
+```
+
+*Test Planner 输出：*
+```yaml
+测试计划:
+  框架选择:
+    主框架: Jest + React Testing Library (RTL)
+    备选: Vitest + RTL
+    Mock: MSW (Mock Service Worker) 或 jest.mock
+  
+  测试范围:
+    单元测试:
+      - 初始状态: loading=true, user=null, error=null
+      - 加载状态: 显示 "Loading..."
+      - 成功状态: 数据加载后显示用户名
+      - 错误状态: API失败显示错误信息
+      - 副作用: useEffect 依赖 [userId] 变化重新获取
+      - 事件处理: 点击Update按钮调用handleUpdate
+    
+    Hooks测试:
+      - useState 状态管理
+      - useEffect 副作用触发时机
+      - 依赖数组变化时重新执行
+  
+  Mock策略:
+    API Mock:
+      - jest.mock('./api') 或 MSW
+      - 成功响应: { id: 1, name: 'John Doe' }
+      - 失败响应: new Error('Network error')
+    
+    函数Mock:
+      - handleUpdate: jest.fn()
+  
+  数据策略:
+    测试数据:
+      - 正常用户: { userId: 1, name: 'John Doe', email: 'john@example.com' }
+      - 边界值: userId为0、负数、极大值
+      - 错误场景: 网络错误、404、500
+  
+  测试文件组织:
+    - 路径: src/components/__tests__/UserProfile.test.jsx
+    - 命名: 组件名 + .test.jsx
+    - 结构:
+        describe('UserProfile', () => {
+          describe('initial render', () => { ... })
+          describe('loading state', () => { ... })
+          describe('success state', () => { ... })
+          describe('error state', () => { ... })
+          describe('user interaction', () => { ... })
+        })
+  
+  特殊考虑:
+    - 异步测试: 使用 findByText/waitFor 等待异步操作
+    - 副作用清理: 组件卸载时取消未完成的API请求
+    - 测试隔离: 每个测试前清理 Mock 和 DOM
+    - 遵循RTL原则: 测行为而非实现细节
+```
+
+---
+
+**三种框架测试规划对比**：
+
+| 维度 | ExtJS | Vue.js | React.js |
+|------|-------|--------|----------|
+| **主要挑战** | 全局Ext对象、生命周期复杂 | Props/Emits类型、响应式系统 | Hooks依赖、异步状态管理 |
+| **Mock重点** | Ext.define、Store、组件渲染 | Props、Provide/Inject、Pinia | API调用、Context、Hooks |
+| **测试工具** | Jest + Sinon + jsdom | Vitest + VTU + @testing-library/vue | Jest + RTL + MSW |
+| **特殊处理** | 手动cleanup、异步render | mount()深度渲染、响应式触发 | waitFor异步、副作用清理 |
+| **代码示例** | 类继承模式、配置对象 | SFC单文件、Composition API | 函数组件、Hooks |
+
+---
 | **RAG Knowledge Base**     | 测试模式库、最佳实践、编码规范     | VectorDB (Milvus/LanceDB)             |
 | **Code Analysis Engine**   | AST 解析、数据流分析、依赖图构建  | ast/@typescript-eslint/@babel/parser + NetworkX |
 | **Hybrid Analysis Engine** | 静态控制流 + 动态覆盖率迭代分析   | Panta 方法论（CFG + Coverage Feedback）    |
