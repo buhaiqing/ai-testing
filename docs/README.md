@@ -28,6 +28,16 @@
 | **第 7 周** | Level 3: 演化进化 | 待创建 | 经验沉淀、知识图谱、学习机制（Learning Agent） |
 | **第 8 周** | Level 3: 多智能体协同 | 待创建 | 质量协调智能体、多 Agent 协作（Orchestrator） |
 
+### Agent 详解文档
+
+| 文档 | 版本 | 说明 |
+|-----|------|------|
+| [QUALITY_AGENT_TEST_GENERATOR.md](./QUALITY_AGENT_TEST_GENERATOR.md) | v2.2 | **测试生成智能体详解** - 四元关系模型、代码生成约束、术语表、人机协作模式、Harness Engineering 集成 |
+| [QUALITY_AGENT_ARCHITECTURE.md](./QUALITY_AGENT_ARCHITECTURE.md) | v1.1 | **架构设计与安全性能** - AI置信度驱动分级、DORA效能指标、Harness平台集成 |
+| [QUALITY_AGENT_EXECUTION.md](./QUALITY_AGENT_EXECUTION.md) | v1.1 | **执行协调智能体** - 双引擎架构、HITL决策机制、Harness Pipeline集成 |
+| [QUALITY_AGENT_RISK_MANAGEMENT.md](./QUALITY_AGENT_RISK_MANAGEMENT.md) | v1.0 | **风险管理** - 风险识别、评估与应对策略 |
+| [QUALITY_AGENT_EVOLUTION.md](./QUALITY_AGENT_EVOLUTION.md) | v1.0 | **演化进化** - 学习机制、知识沉淀、持续优化 |
+
 ### 其他文档
 
 | 文档 | 说明 |
@@ -190,9 +200,22 @@ cat ./week2-detailed-plan.md
 
 ---
 
-**最后更新**：2026-04-22  
+## 🚀 Harness Engineering 2026 更新
+
+质量智能体已全面集成 **Harness Engineering** 平台能力：
+
+| 特性 | 说明 | 相关文档 |
+|-----|------|---------|
+| **AI 置信度驱动** | 基于置信度分级的自动化执行策略 | [QUALITY_AGENT_ARCHITECTURE.md](./QUALITY_AGENT_ARCHITECTURE.md) |
+| **Human-in-the-Loop** | 关键决策点人工确认机制 | [QUALITY_AGENT_EXECUTION.md](./QUALITY_AGENT_EXECUTION.md) |
+| **Harness Pipeline** | 测试生成→执行→分析全流程编排 | [QUALITY_AGENT_TEST_GENERATOR.md](./QUALITY_AGENT_TEST_GENERATOR.md) |
+| **DORA 指标** | 部署频率、变更前置时间、失败率、恢复时间 | [QUALITY_AGENT_ARCHITECTURE.md](./QUALITY_AGENT_ARCHITECTURE.md) |
+
+---
+
+**最后更新**：2026-04-23  
 **维护者**：Quality Agent 培养计划  
-**版本**：v2026.04 (Quality Agent Edition)
+**版本**：v2026.04.23 (Harness Engineering Edition)
 
 ---
 

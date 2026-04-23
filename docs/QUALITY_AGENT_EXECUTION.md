@@ -1,13 +1,18 @@
 # Execution Agent 执行协调智能体详解
 
-**版本**：v1.0
+**版本**：v1.1
 **最后更新**：2026-04-23
 **维护者**：Quality Agent 培养计划
 **关联主文档**：[AGENTS.md](../AGENTS.md)
+**关联详解文档**：
+- [QUALITY_AGENT_TEST_GENERATOR.md](./QUALITY_AGENT_TEST_GENERATOR.md) - 测试生成与 Harness 集成
+- [QUALITY_AGENT_ARCHITECTURE.md](./QUALITY_AGENT_ARCHITECTURE.md) - 架构设计与置信度策略
 
 ---
 
 ## 一、核心定位
+
+> 🚀 **2026 Harness 更新**：Execution Agent 已集成 AI 置信度评估和 Human-in-the-Loop (HITL) 决策机制，实现智能化的执行控制
 
 Execution Agent 是质量智能体的核心专业 Agent，采用「执行引擎 + 分析引擎」双引擎架构，在完成测试执行的基础上，集成 AI 驱动的测试结果智能分析能力，实现从「执行反馈」到「智能洞察」的升级。
 
@@ -265,9 +270,68 @@ Git 变更记录 ──────────┤                              
 | 风险关联分析 | Risk Predictor Agent | 测试异常模式 → 关联风险评估结果 |
 | 策略动态调整 | Strategy Agent | 分析结果 → 触发 Strategy Agent 调整测试策略 |
 | 经验沉淀学习 | Learning Agent | 分析结论 → 通过 Learning Agent 沉淀到知识库 |
+| Harness 集成执行 | Harness Pipeline | 执行结果 → Harness 报告，触发 Approval/Policy |
+
+---
+
+## 七、Harness Engineering 集成
+
+### 7.1 Harness Pipeline Stage 集成
+
+Execution Agent 作为 Harness Pipeline 的 Stage 执行单元：
+
+```yaml
+# Harness Pipeline 执行阶段配置示例
+pipeline:
+  stages:
+    - stage:
+        name: "AI-Driven Test Execution"
+        type: AI
+        spec:
+          agent: "execution-agent"
+          action: "execute_and_analyze"
+          input: "generated_tests/"
+          output: "test_results/"
+          
+          # AI 置信度配置
+          confidence_threshold: 0.85
+          on_low_confidence: "approval_required"
+          
+          # Harness 集成点
+          harness_integration:
+            approval_stage: true      # 低置信度时触发 Approval
+            policy_checks:            # Policy 检查点
+              - "test_coverage_min_80"
+              - "no_critical_failures"
+            sto_integration: true     # 安全测试结果关联
+            
+          # 分析引擎配置
+          analysis_config:
+            root_cause_enabled: true
+            attribution_enabled: true
+            suggestion_enabled: true
+```
+
+### 7.2 Human-in-the-Loop (HITL) 决策点
+
+| 场景 | 触发条件 | 人工介入方式 | 决策权重 |
+|-----|---------|-------------|---------|
+| **低置信度执行** | AI 置信度 < 0.85 | Approval Stage 确认 | 100% |
+| **关键失败分析** | 生产环境失败 | 根因分析报告审核 | 80% |
+| **策略调整** | 异常模式识别 | 策略变更确认 | 60% |
+| **归因争议** | 责任方判定存疑 | 归因结果仲裁 | 70% |
+
+---
+
+## 八、版本更新记录
+
+| 版本 | 日期 | 更新内容 |
+|------|------|---------|
+| v1.1 | 2026-04-23 | 新增 Harness Pipeline 集成、HITL 决策机制、AI 置信度配置 |
+| v1.0 | 2026-04-23 | 初始版本，包含执行引擎和分析引擎双架构 |
 
 ---
 
 **最后更新**：2026-04-23
 **维护者**：Quality Agent 培养计划
-**版本**：v1.0
+**版本**：v1.1
