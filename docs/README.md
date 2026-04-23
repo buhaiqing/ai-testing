@@ -12,7 +12,7 @@
 |-----|------|--------|
 | [../AGENTS.md](../AGENTS.md) | **质量智能体架构与实现指南** - 完整的技术架构、Agent 职责、Test Generator Agent 详解 | ⭐⭐⭐⭐⭐ |
 | [../README.md](../README.md) | **项目总览** - 质量智能体定义、成长路径、8 周培养计划 | ⭐⭐⭐⭐⭐ |
-| [ai-agent-testing-knowledge-system.md](./ai-agent-testing-knowledge-system.md) | **知识体系完整报告** - 五维能力模型、混合架构、成长路径（2026-2030） | ⭐⭐⭐⭐⭐ |
+| [ai-agent-testing-knowledge-system.md](./ai-agent-testing-knowledge-system.md) | **知识体系完整报告** - 五维能力模型、混合架构、成长路径（2026-2028） | ⭐⭐⭐⭐⭐ |
 | [8-week-daily-task-list.md](./8-week-daily-task-list.md) | **8 周成长路径** - 每日任务清单、Level 1-3 能力培养 | ⭐⭐⭐⭐⭐ |
 
 ### 周次详细计划
