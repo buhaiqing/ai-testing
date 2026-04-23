@@ -23,6 +23,7 @@
 - [8 周培养计划](#-8-周培养计划)
 - [核心能力模型](#-核心能力模型)
 - [项目结构](#-项目结构)
+- [专项文档](#-专项文档)
 - [使用指南](#-使用指南)
 - [参与贡献](#-参与贡献)
 - [许可证](#-许可证)
@@ -308,13 +309,36 @@ ai-testing/
 ├── docs/
 │   ├── ai-agent-testing-knowledge-system.md  # 质量智能体完整知识体系
 │   ├── 8-week-daily-task-list.md             # 8 周成长路径详细任务
-│   ├── week1-detailed-plan.md                # 第 1 周详细计划
-│   ├── week2-detailed-plan.md                # 第 2 周详细计划
-│   └── README.md                             # docs 目录索引（待创建）
+│   ├── week1-detailed-plan.md ~ week8-detailed-plan.md  # 各周详细计划
+│   ├── QUALITY_AGENT_TEST_GENERATOR.md       # 测试代码生成智能体详解
+│   ├── QUALITY_AGENT_EXECUTION.md            # 执行协调智能体详解
+│   ├── QUALITY_AGENT_EVOLUTION.md            # 进化机制详解
+│   ├── QUALITY_AGENT_RISK_MANAGEMENT.md      # 技术风险与缓解策略详解
+│   ├── QUALITY_AGENT_ARCHITECTURE.md         # 架构设计 + 安全与性能详解
+│   └── README.md                             # docs 目录索引
+├── .agents/
+│   └── rules/
+│       └── python-automation-testing-coding-standard.md  # 编码规范
 ├── AGENTS.md                                  # 质量智能体架构与实现指南
 ├── README.md                                  # 项目说明（当前文件）
 └── LICENSE
 ```
+
+---
+
+## 📋 专项文档
+
+| 文档 | 内容 |
+|-----|------|
+| [AGENTS.md](./AGENTS.md) | 质量智能体核心架构与行动指南 |
+| [docs/QUALITY_AGENT_EXECUTION.md](./docs/QUALITY_AGENT_EXECUTION.md) | 执行协调智能体详解（双引擎架构、四大能力） |
+| [docs/QUALITY_AGENT_TEST_GENERATOR.md](./docs/QUALITY_AGENT_TEST_GENERATOR.md) | 测试代码生成智能体详解 |
+| [docs/QUALITY_AGENT_EVOLUTION.md](./docs/QUALITY_AGENT_EVOLUTION.md) | 进化机制详解（三层架构） |
+| [docs/QUALITY_AGENT_RISK_MANAGEMENT.md](./docs/QUALITY_AGENT_RISK_MANAGEMENT.md) | 技术风险与缓解策略详解 |
+| [docs/QUALITY_AGENT_ARCHITECTURE.md](./docs/QUALITY_AGENT_ARCHITECTURE.md) | 架构设计 + 安全与性能详解 |
+| [docs/ai-agent-testing-knowledge-system.md](./docs/ai-agent-testing-knowledge-system.md) | 质量智能体完整知识体系 |
+| [docs/8-week-daily-task-list.md](./docs/8-week-daily-task-list.md) | 8 周成长路径详细任务 |
+| [.agents/rules/python-automation-testing-coding-standard.md](./.agents/rules/python-automation-testing-coding-standard.md) | 编码规范与最佳实践 |
 
 ---
 
