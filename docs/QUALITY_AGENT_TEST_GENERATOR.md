@@ -943,15 +943,52 @@ interface ValidationReport {
 
 ### 0.7.5 关键决策点与人工介入时机
 
-| 决策点 | 决策内容 | 介入时机 | 决策依据 |
-|-------|---------|---------|---------|
-| **D1: 需求理解** | 确认需求解析是否正确 | Phase 0 完成后 | 业务知识 |
-| **D2: 测试范围** | 确定测试覆盖范围 | Phase 1 完成后 | 风险评估 |
-| **D3: 策略选择** | 选择测试框架和策略 | Phase 3 完成后 | 技术判断 |
-| **D4: 代码审核** | 审核生成的测试代码 | Phase 4 完成后 | 质量标准 |
-| **D5: 失败分析** | 分析测试失败原因 | Phase 5 失败后 | 调试能力 |
-| **D6: 覆盖验证** | 确认需求覆盖完整性 | Phase 6 完成后 | 业务价值 |
-| **D7: 发布决策** | 决定是否发布测试 | 全流程完成后 | 质量门禁 |
+#### 0.7.5.1 基于AI置信度的动态决策模型（Harness Engineering）
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    AI置信度驱动的自动化分级策略                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   置信度范围        风险等级        执行策略           人工介入要求         │
+│   ─────────────────────────────────────────────────────────────────────    │
+│                                                                             │
+│   ≥ 0.95           🔵 低           ✅ 自动执行         无需介入             │
+│                                                                             │
+│   0.85 ~ 0.95      🟡 中           ⏳ 通知后执行       5分钟撤销窗口        │
+│                                    (5分钟撤销期)                            │
+│                                                                             │
+│   < 0.85           🔴 高           🛑 强制确认         必须人工审核         │
+│                                                                             │
+│   任意             ⚫ 关键         🛑 强制确认         生产部署、数据删除   │
+│                                    (关键操作)        等必须人工确认         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 0.7.5.2 关键决策点与置信度阈值
+
+| 决策点 | 决策内容 | 介入时机 | 置信度阈值 | 决策模式 | 决策依据 |
+|-------|---------|---------|-----------|---------|---------|
+| **D1: 需求理解** | 确认需求解析是否正确 | Phase 0 完成后 | ≥ 0.90 | 人机协商 | 业务知识 |
+| **D2: 测试范围** | 确定测试覆盖范围 | Phase 1 完成后 | ≥ 0.85 | 强制确认 | 风险评估 |
+| **D3: 策略选择** | 选择测试框架和策略 | Phase 3 完成后 | ≥ 0.80 | 人机协商 | 技术判断 |
+| **D4: 代码审核** | 审核生成的测试代码 | Phase 4 完成后 | ≥ 0.95 | 自动执行 | 质量标准 |
+| **D5: 失败分析** | 分析测试失败原因 | Phase 5 失败后 | < 0.85 | 强制确认 | 调试能力 |
+| **D6: 覆盖验证** | 确认需求覆盖完整性 | Phase 6 完成后 | ≥ 0.90 | 人机协商 | 业务价值 |
+| **D7: 发布决策** | 决定是否发布测试 | 全流程完成后 | ≥ 0.95 | 强制确认 | 质量门禁 |
+
+#### 0.7.5.3 必须人工确认的关键场景（Harness强制规则）
+
+| 场景类型 | 置信度要求 | 处理策略 | Harness策略映射 |
+|---------|-----------|---------|----------------|
+| **生产环境部署** | 任意 | 🛑 强制确认 | Policy Engine 拦截 |
+| **自动回滚操作** | 任意 | 🛑 强制确认 | Approval Stage 必经 |
+| **数据库Schema变更** | 任意 | 🛑 强制确认 | Change Management |
+| **安全策略修改** | 任意 | 🛑 强制确认 | Security Policy |
+| **成本优化涉及资源删除** | 任意 | 🛑 强制确认 | CCM Cost Guard |
+| **跨服务依赖变更** | < 0.90 | 🛑 强制确认 | Dependency Check |
+| **UI测试覆盖率 < 80%** | < 0.80 | ⚠️ 警告 + 建议 | STO Quality Gate |
 
 ### 0.7.6 人的不可替代性分析
 
@@ -1413,7 +1450,240 @@ interface ValidationReport {
 
 ---
 
-## 0.8 系统性反思：当前技术方案的优化方向
+## 0.8 Harness Engineering 平台能力整合
+
+> 🚀 **Harness 视角**：测试智能体不应是孤立系统，而应作为 Harness 平台工程体系的核心组件，充分利用 Pipeline、Policy、Approval 等平台能力构建完整的 AI 驱动测试工作流。
+
+### 0.8.1 Harness 平台作为 AI Agent 基础设施
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Harness 平台：AI Agent 的基础设施底座                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                         Harness 平台能力层                           │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │                                                                      │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │   │
+│  │  │  Pipeline   │  │    STO      │  │   Policy    │  │  Approval   │ │   │
+│  │  │  执行编排   │  │  安全测试   │  │  策略引擎   │  │  人工确认   │ │   │
+│  │  │             │  │             │  │             │  │   网关      │ │   │
+│  │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘ │   │
+│  │         │                │                │                │        │   │
+│  │         └────────────────┴────────────────┴────────────────┘        │   │
+│  │                                   │                                  │   │
+│  │                                   ▼                                  │   │
+│  │                    ┌─────────────────────────┐                       │   │
+│  │                    │     测试智能体核心       │                       │   │
+│  │                    │  Test Generator Agent   │                       │   │
+│  │                    └─────────────────────────┘                       │   │
+│  │                                   │                                  │   │
+│  │         ┌─────────────────────────┼─────────────────────────┐        │   │
+│  │         │                         │                         │        │   │
+│  │         ▼                         ▼                         ▼        │   │
+│  │  ┌─────────────┐           ┌─────────────┐           ┌─────────────┐ │   │
+│  │  │    SRM      │           │    CCM      │           │   GitOps    │ │   │
+│  │  │  服务可靠性 │           │  成本管理   │           │  配置管理   │ │   │
+│  │  │  决策数据   │           │  资源优化   │           │  版本控制   │ │   │
+│  │  └─────────────┘           └─────────────┘           └─────────────┘ │   │
+│  │                                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 0.8.2 Harness 能力映射与测试智能体集成
+
+| Harness 能力 | 对测试智能体的支撑 | 集成场景 | 实现方式 |
+|-------------|-------------------|---------|---------|
+| **Pipeline** | Agent 执行编排器 | 测试生成→执行→报告全流程编排 | Pipeline Stage 串联 |
+| **STO** | 安全扫描结果输入 | 将安全测试需求纳入测试生成 | STO 扫描结果 → 测试意图 |
+| **Policy** | Agent 行为约束 | 强制执行代码生成约束 | Policy Engine 拦截 |
+| **Approval** | 人工确认网关 | 关键决策点强制人工审核 | Approval Stage 必经 |
+| **SRM** | 服务可靠性数据 | 基于历史故障生成针对性测试 | SRM 事件 → 测试场景 |
+| **CCM** | 成本分析数据 | 优化测试执行资源配置 | 成本阈值触发测试精简 |
+| **GitOps** | 配置管理 | 测试策略版本化管理 | Git 存储测试配置 |
+
+### 0.8.3 Harness Pipeline 集成测试智能体工作流
+
+```yaml
+# harness-pipeline-test-agent.yaml
+pipeline:
+  name: "AI-Driven Test Generation Pipeline"
+  
+  stages:
+    - stage:
+        name: "Requirements Analysis"
+        type: AI
+        spec:
+          agent: "test-generator-agent"
+          action: "parse_requirements"
+          output: "test_intents.json"
+          confidence_threshold: 0.90
+          on_low_confidence: "approval_required"  # Harness Approval
+    
+    - stage:
+        name: "Test Code Generation"
+        type: AI
+        spec:
+          agent: "test-generator-agent"
+          action: "generate_tests"
+          input: "test_intents.json"
+          output: "generated_tests/"
+          constraints: 
+            - "data-testid_required: true"        # Harness Policy
+            - "coverage_threshold: 80"             # Harness STO
+          
+    - stage:
+        name: "Human Review"
+        type: Approval
+        spec:
+          message: "请审核生成的测试代码"
+          timeout: "24h"
+          approvers: ["qa-lead", "tech-lead"]
+          when: "<+pipeline.variables.confidence> < 0.95"
+    
+    - stage:
+        name: "Test Execution"
+        type: CI
+        spec:
+          steps:
+            - step:
+                name: "Run Generated Tests"
+                type: Run
+                spec:
+                  command: "npm run test:generated"
+            - step:
+                name: "Upload Results to STO"
+                type: STO
+                spec:
+                  scan_type: "custom"
+                  target: "test_results/"
+    
+    - stage:
+        name: "Coverage Gate"
+        type: Policy
+        spec:
+          policy: "test-coverage-policy"
+          rules:
+            - "requirements_coverage >= 80"
+            - "code_coverage >= 70"
+            - "no_flaky_tests"
+          on_violation: "block_deployment"
+```
+
+### 0.8.4 Harness Policy Engine 约束实施
+
+```yaml
+# harness-policy-test-constraints.yaml
+policies:
+  - name: "Test Code Generation Constraints"
+    description: "AI生成测试代码的强制性约束"
+    
+    rules:
+      # P0 - 阻塞级约束
+      - name: "intent_alignment"
+        severity: "critical"
+        condition: "test.intent_match_score >= 0.95"
+        action: "block"
+        message: "测试意图对齐度不足，必须人工审核"
+        
+      - name: "code_correspondence"
+        severity: "critical"
+        condition: "test.target_exists == true"
+        action: "block"
+        message: "测试目标在源代码中不存在"
+        
+      # UI测试强制规范（Harness 2026）
+      - name: "data_testid_required"
+        severity: "critical"
+        condition: "ui.elements.all_have_testid == true"
+        action: "block"
+        message: "所有UI元素必须包含data-testid属性"
+        
+      - name: "array_index_identifier"
+        severity: "high"
+        condition: "ui.lists.have_index_identifiers == true"
+        action: "warn"
+        message: "列表渲染应同时提供索引和ID标识符"
+        
+      # P1 - 警告级约束
+      - name: "requirements_coverage"
+        severity: "high"
+        condition: "coverage.requirements >= 0.80"
+        action: "warn"
+        message: "需求覆盖率低于80%，建议补充测试"
+        
+      - name: "no_flaky_tests"
+        severity: "high"
+        condition: "tests.flaky_count == 0"
+        action: "warn"
+        message: "检测到flaky测试，需要修复"
+        
+    # 置信度驱动的自动化分级
+    confidence_levels:
+      - level: "auto_execute"
+        threshold: ">= 0.95"
+        actions: ["auto_merge", "auto_deploy_dev"]
+        
+      - level: "notify_execute"
+        threshold: "0.85 - 0.95"
+        actions: ["notify_team", "auto_execute_with_rollback_window"]
+        rollback_window: "5m"
+        
+      - level: "approval_required"
+        threshold: "< 0.85"
+        actions: ["require_approval", "block_auto_deploy"]
+```
+
+### 0.8.5 DORA 效能指标与测试智能体度量
+
+| DORA 指标 | 基线值 | 目标值 | 测试智能体贡献 |
+|-----------|--------|--------|---------------|
+| **部署频率** | 1-2次/周 | 5-10次/天 | 自动化测试生成缩短准备时间 |
+| **变更前置时间** | 1-2周 | 2-4小时 | 智能测试策略减少测试执行时间 |
+| **变更失败率** | 15-20% | 5-8% | 全面测试覆盖减少生产缺陷 |
+| **恢复时间** | 数小时 | < 1小时 | 自动化故障测试加速定位 |
+| **UI自动化测试覆盖率** | 30% | 80% | data-testid原生支持 |
+| **测试生成效率** | 人工2天/功能 | AI 2小时/功能 | AI辅助代码生成 |
+
+### 0.8.6 Harness 视角下的测试智能体演进路径
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Harness 平台集成演进路线图                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Phase 1: Pipeline 集成（1-2月）                                            │
+│  ├── 将测试智能体作为 Pipeline Stage 嵌入                                   │
+│  ├── 利用 Harness Approval 实现人工确认网关                                 │
+│  └── 验收标准：Pipeline 成功执行测试生成→执行→报告全流程                    │
+│                                                                             │
+│  Phase 2: Policy 约束（2-3月）                                              │
+│  ├── 将代码生成约束映射为 Harness Policy                                    │
+│  ├── 利用 Policy Engine 强制执行 P0 约束                                    │
+│  └── 验收标准：约束违规自动拦截，质量门禁生效                               │
+│                                                                             │
+│  Phase 3: STO 集成（3-4月）                                                 │
+│  ├── 将安全测试需求纳入测试生成意图                                         │
+│  ├── 测试执行结果自动上传 STO                                               │
+│  └── 验收标准：安全测试与功能测试一体化                                     │
+│                                                                             │
+│  Phase 4: SRM 驱动（4-6月）                                                 │
+│  ├── 基于 SRM 故障数据生成针对性测试                                        │
+│  ├── 利用历史事件优化测试策略                                               │
+│  └── 验收标准：故障驱动测试覆盖率达到 80%                                   │
+│                                                                             │
+│  Phase 5: 全链路智能化（6-12月）                                            │
+│  ├── 多 Agent 协同编排                                                      │
+│  ├── CCM 成本优化驱动的测试资源配置                                         │
+│  └── 验收标准：DORA 指标达到行业领先水平                                    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 0.9 系统性反思：当前技术方案的优化方向
 
 基于三元逻辑关系模型的深度分析，对本文档后续技术方案进行系统性反思，识别优化重点：
 
@@ -2297,13 +2567,54 @@ await orgManagePage.searchOrg(orgName, undefined);
 | **数据关联** | 多实体间的关联关系 | 对象图构建器 |
 | **性能优化** | 批量生成大量数据 | 批量插入 + 连接池 |
 
-#### 3.4.2 智能元素定位器 (SmartLocators)
+#### 3.4.2 智能元素定位器 (SmartLocators) - Harness Engineering 强制规范
+
+> ⚠️ **强制性规则（Harness 2026）**：所有 UI 代码必须包含 `data-testid` 属性，这是 UI 自动化测试的原生要求
 
 **核心功能**：
+- **data-testid 优先策略**（Harness 强制要求）
 - 多策略定位（优先级回退）
 - 自愈机制（自动修复失效定位）
 - 视觉匹配兜底
 - 策略稳定性评分
+
+**Harness UI 测试强制规范**：
+
+| 元素类型 | data-testid 格式 | 示例 |
+|---------|-----------------|------|
+| 页面容器 | `page-{page-name}` | `page-user-list` |
+| 表单 | `form-{form-name}` | `form-login` |
+| 输入框 | `input-{context}-{field}` | `input-login-username` |
+| 按钮 | `button-{context}-{action}` | `button-user-save` |
+| 下拉菜单 | `select-{context}-{field}` | `select-user-role` |
+| 表格 | `table-{entity}-list` | `table-user-list` |
+| 表格行 | `table-row-{entity}-${index}` | `table-row-user-0` |
+| 对话框 | `dialog-{entity}-{action}` | `dialog-user-edit` |
+| 导航菜单 | `menu-item-{entity}` | `menu-item-dashboard` |
+
+**数组/列表渲染规范（关键 - Harness 强制）**：
+```tsx
+// ✅ 正确实现 - 必须同时提供索引和 ID 两种标识符
+{users.map((user, index) => (
+  <tr 
+    key={user.id}
+    data-testid={`table-row-user-${index}`}        // 索引标识
+    data-user-id={user.id}                          // 数据ID
+  >
+    <td data-testid={`cell-user-name-${user.id}`}>{user.name}</td>
+    <td>
+      <button data-testid={`button-user-edit-${user.id}`}>编辑</button>
+    </td>
+  </tr>
+))}
+
+// ❌ 错误实现 - 缺少 data-testid
+{users.map((user) => (
+  <tr key={user.id}>
+    <td>{user.name}</td>
+  </tr>
+))}
+```
 
 ```typescript
 // tests/e2e/utils/smart-locators.ts
@@ -4121,12 +4432,13 @@ class TestGeneratorAgent:
 
 **最后更新**：2026-04-23\
 **维护者**：Quality Agent 培养计划\
-**版本**：v2.1
+**版本**：v2.2
 
 ### 版本更新记录
 
 | 版本 | 日期 | 更新内容 |
 |------|------|---------|
+| v2.2 | 2026-04-23 | **Harness Engineering 集成**：新增0.8章节，从Harness平台工程视角重构测试智能体架构，包括AI置信度驱动的自动化分级策略、UI测试data-testid强制规范、Harness Pipeline/Policy/Approval集成、DORA效能指标度量体系 |
 | v2.1 | 2026-04-23 | **约束调整**：将需求追溯(C-000)和需求覆盖(C-001)从P0降级到P1，编号调整为M-000和M-001，违规处理从"拒绝生成"改为"警告"，更符合工程实践中的渐进式采用策略 |
 | v2.0 | 2026-04-23 | **重大更新**：新增附录A《人机协作模式系统性评估报告》，系统阐述人类核心作用的理论基础、HITL模式框架、全流程介入点分析、分层协作架构、价值评估与ROI分析，形成完整的人机协作方法论体系 |
 | v1.9 | 2026-04-23 | **人机协作**：新增人的核心作用与技能要求章节（0.7），提出「第五元」概念，定义6大核心角色、3类技能要求、7个关键决策点、4级协作模式，补充需求覆盖率术语 |
