@@ -397,9 +397,9 @@ cat docs/week2-detailed-plan.md
 
 ### 获取帮助
 
-- 📧 邮箱：your-email@example.com
-- 🐙 GitHub Issues：[创建新 Issue](https://github.com/your-username/ai-testing/issues)
-- 💬 微信群：质量智能体培养计划
+- 📧 邮箱：haiqing.bu@163.com
+- 🐙 GitHub Issues：[创建新 Issue](https://github.com/buhaiqing/ai-testing/issues)
+
 
 ---
 
