@@ -1,12 +1,12 @@
 # Execution Agent 执行协调智能体详解
 
-**版本**：v1.1
-**最后更新**：2026-04-23
-**维护者**：Quality Agent 培养计划
-**关联主文档**：[AGENTS.md](../AGENTS.md)
-**关联详解文档**：
-- [QUALITY_AGENT_TEST_GENERATOR.md](./QUALITY_AGENT_TEST_GENERATOR.md) - 测试生成与 Harness 集成
-- [QUALITY_AGENT_ARCHITECTURE.md](./QUALITY_AGENT_ARCHITECTURE.md) - 架构设计与置信度策略
+| 属性 | 值 |
+|-----|-----|
+| **文档类型** | IMPL |
+| **版本** | v1.1.0 |
+| **最后更新** | 2026-04-23 |
+| **维护者** | Quality Agent 培养计划 |
+| **关联文档** | [AGENTS.md](../AGENTS.md), [TERMINOLOGY.md](./TERMINOLOGY.md), [VERSIONING.md](./VERSIONING.md) |
 
 ---
 
@@ -22,7 +22,7 @@ Execution Agent 是质量智能体的核心专业 Agent，采用「执行引擎 
 | **工作场景** | 执行测试用例、调度测试资源、收集测试结果、自动分析失败根因、归因定位责任方、生成优化建议 |
 | **输入** | 测试用例列表、执行环境配置、历史测试数据、变更记录 |
 | **输出** | 测试执行报告、失败用例详情、性能指标、根因分析报告、归因分析报告、优化建议清单 |
-| **技术要点** | Workflow Engine + LLM + Knowledge Graph（故障知识图谱）+ 统计分析模型 |
+| **技术要点** | Workflow Engine + AI模型 + [知识图谱] + 统计分析模型 |
 
 ---
 
@@ -205,8 +205,8 @@ Execution Agent 是质量智能体的核心专业 Agent，采用「执行引擎 
 │  └─ 低影响 + 高成本 → 暂缓处理                                 │
 │         ↓                                                       │
 │  Step 3: 建议内容生成                                           │
-│  ├─ RAG 检索历史最佳实践                                       │
-│  ├─ LLM 生成上下文相关的具体建议                               │
+│  ├─ [知识检索] 检索历史最佳实践                               │
+│  ├─ AI模型 生成上下文相关的具体建议                            │
 │  ├─ 关联历史成功案例作为参考                                   │
 │  └─ 量化预期收益（通过率提升、耗时降低等）                     │
 │         ↓                                                       │
@@ -228,11 +228,11 @@ Execution Agent 是质量智能体的核心专业 Agent，采用「执行引擎 
 | **Result Parser** | 解析测试输出，提取结构化数据 | 正则引擎 + AST Parser |
 | **Metric Extractor** | 自动提取关键指标，计算统计量 | 统计分析库（numpy/pandas） |
 | **Anomaly Detector** | 异常模式识别，偏离基线检测 | 统计检验 + ML 异常检测模型 |
-| **Trend Analyzer** | 历史趋势关联分析，时序数据对比 | 时序分析 + LLM 语义理解 |
-| **Root Cause Analyzer** | 根因链路推导，因果关系构建 | LLM + Knowledge Graph + 规则引擎 |
+| **Trend Analyzer** | 历史趋势关联分析，时序数据对比 | 时序分析 + AI模型 语义理解 |
+| **Root Cause Analyzer** | 根因链路推导，因果关系构建 | AI模型 + [知识图谱] + [规则引擎] |
 | **Attribution Engine** | 责任方/模块归因映射 | 代码归属分析 + 组织架构映射 |
-| **Suggestion Generator** | 优化建议生成与优先级排序 | LLM + RAG（最佳实践库） |
-| **Report Generator** | 多维度分析报告生成 | LLM + 模板引擎 + 可视化 |
+| **Suggestion Generator** | 优化建议生成与优先级排序 | AI模型 + [知识检索]（最佳实践库） |
+| **Report Generator** | 多维度分析报告生成 | AI模型 + 模板引擎 + 可视化 |
 
 ---
 
@@ -332,6 +332,8 @@ pipeline:
 
 ---
 
-**最后更新**：2026-04-23
-**维护者**：Quality Agent 培养计划
-**版本**：v1.1
+## 变更历史
+
+| 版本 | 日期 | 变更内容 | 变更人 |
+|-----|------|---------|--------|
+| v1.1.0 | 2026-04-23 | 初始版本，建立双引擎架构（执行引擎+分析引擎），定义四大核心能力 | - |

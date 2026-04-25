@@ -1,10 +1,12 @@
 # Quality Agent 架构设计与安全性能详解
 
-**版本**：v1.1
-**最后更新**：2026-04-23
-**维护者**：Quality Agent 培养计划
-**关联主文档**：[AGENTS.md](../AGENTS.md)
-**关联详解文档**：[QUALITY_AGENT_TEST_GENERATOR.md](./QUALITY_AGENT_TEST_GENERATOR.md) - 包含 Harness Engineering 集成和置信度驱动策略
+| 属性 | 值 |
+|-----|-----|
+| **文档类型** | ARCH |
+| **版本** | v2.0.0 |
+| **最后更新** | 2026-04-26 |
+| **维护者** | Quality Agent 培养计划 |
+| **关联文档** | [AGENTS.md](../AGENTS.md), [TERMINOLOGY.md](./TERMINOLOGY.md), [VERSIONING.md](./VERSIONING.md) |
 
 ---
 
@@ -42,16 +44,365 @@
 
 ---
 
-## 二、安全设计原则
+## 二、安全设计
 
-| 安全维度 | 措施 | 说明 |
+### 2.1 威胁模型 (STRIDE)
+
+基于 STRIDE 方法论，对质量智能体系统进行系统性威胁分析：
+
+| 威胁类别 | 具体威胁 | 攻击面 | 缓解措施 | 验证方式 |
+|---------|---------|--------|---------|---------|
+| **S**poofing | 攻击者伪造 Agent 身份调用工具或 API | Agent 间通信通道、外部工具 API | mTLS 双向认证 + JWT 签名验证；API Key 定期轮换 | 渗透测试：尝试伪造 Agent 身份发送任务请求 |
+| **T**ampering | 篡改 RAG 知识库中的测试模式或规则；篡改测试执行结果 | VectorDB 写入接口、规则引擎存储、测试结果数据库 | 写入前 HMAC 签名校验；关键数据 WORM（一次写入多次读取）存储 | 完整性校验测试：尝试篡改已存储经验 |
+| **R**epudiation | Agent 执行了危险操作（如删除生产数据）但无证据 | 操作日志系统 | 不可篡改日志（写入 WORM 存储或区块链审计链）；所有操作关联操作者身份 | 日志审计测试：验证日志不可删除、不可修改 |
+| **I**nformation Disclosure | LLM 输出包含生产敏感数据（密码、Token、个人信息）；测试代码泄露内网架构 | LLM 输出通道、生成的测试代码、日志文件 | 输出层 DLP 扫描；敏感数据正则匹配拦截；日志分级脱敏 | 敏感数据注入测试：向系统输入含假敏感数据的代码，验证输出是否脱敏 |
+| **D**enial of Service | 构造超大代码文件导致解析死循环；向 LLM 发送超长 Prompt 消耗 Token 配额 | Code Parser 输入、LLM API 入口 | 输入大小限制（单文件 < 1MB，总上下文 < 100K tokens）；超时熔断（解析 > 30s 强制终止）；API 速率限制 | 模糊测试：注入超大文件、超长字符串 |
+| **E**levation of Privilege | 测试代码在沙箱内逃逸获取宿主机权限；Agent 越权访问其他 Agent 的记忆数据 | 沙箱执行环境、共享记忆层 | gVisor 系统调用拦截 + seccomp 配置文件；内存隔离（每个 Agent 独立进程空间）；最小权限原则 | 容器逃逸测试：运行已知逃逸漏洞代码 |
+
+### 2.2 数据安全
+
+#### 2.2.1 敏感数据识别与分类
+
+| 敏感级别 | 数据类型 | 示例 | 处理策略 |
+|---------|---------|------|---------|
+| **Critical** | 生产凭证、私钥、数据库密码 | `DB_PASSWORD=xxx`、`AWS_SECRET_ACCESS_KEY` | **禁止进入系统**：预提交钩子拦截，构建失败 |
+| **High** | API Token、Session ID、内部 IP | `Authorization: Bearer xxx`、`10.0.x.x` | **强制脱敏**：替换为占位符，进入系统前扫描 |
+| **Medium** | 业务敏感数据（手机号、银行卡号） | `138****1234` | **按需脱敏**：根据数据使用场景决定是否脱敏 |
+| **Low** | 内部服务名、非敏感配置 | `payment-service`、`timeout=30` | **允许通过**：正常处理 |
+
+#### 2.2.2 脱敏处理流程
+
+```
+源代码输入
+    │
+    ▼
+┌─────────────────┐
+│ 预扫描器        │  ──► 正则匹配 Critical 级数据 ──► 发现即阻断
+│ (Pre-Scanner)   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ AST 遍历器      │  ──► 识别字符串字面量、注释、配置文件中的 High 级数据
+│ (AST Walker)    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ 脱敏引擎        │  ──► 替换为占位符：{{DB_PASSWORD}}、{{INTERNAL_IP}}
+│ (Sanitizer)     │  ──► 建立「占位符 → 原始值」的加密映射表（仅沙箱内可用）
+└────────┬────────┘
+         │
+         ▼
+    脱敏后数据 ──► 进入 LLM 上下文 / RAG 索引 / 日志存储
+```
+
+#### 2.2.3 脱敏占位符规范
+
+| 原始数据类型 | 占位符格式 | 示例 |
+|-------------|-----------|------|
+| 数据库连接密码 | `{{DB_PASSWORD:<hash>}}` | `{{DB_PASSWORD:a1b2c3}}` |
+| API Token | `{{API_TOKEN:<hash>}}` | `{{API_TOKEN:d4e5f6}}` |
+| 内部 IP 地址 | `{{INTERNAL_IP:<hash>}}` | `{{INTERNAL_IP:10.0.1.2}}` |
+| 手机号 | `{{PHONE_NUMBER:<hash>}}` | `{{PHONE_NUMBER:138****1234}}` |
+
+> **说明**：`<hash>` 为原始数据的 SHA-256 前 6 位，用于沙箱内反向查找（需解密权限）。
+
+### 2.3 访问控制 (RBAC)
+
+#### 2.3.1 角色定义
+
+| 角色 | 职责描述 | 典型使用者 |
+|------|---------|-----------|
+| **System** | 系统内部服务账号，用于 Agent 间通信和基础设施操作 | Orchestrator、消息队列、数据库 |
+| **Orchestrator** | 全局协调者，负责任务分发和策略决策 | 质量智能体核心控制器 |
+| **Agent** | 专业 Agent（Test Generator、Execution 等），执行具体任务 | 各专业 Agent 实例 |
+| **Operator** | 运维工程师，负责系统配置、监控、故障处理 | SRE、DevOps 工程师 |
+| **Developer** | 开发工程师，使用系统生成测试代码、查看报告 | 后端/前端开发 |
+| **Auditor** | 审计员，只读访问日志和报告，用于合规审计 | 安全合规团队 |
+
+#### 2.3.2 权限矩阵
+
+| 权限 \ 角色 | System | Orchestrator | Agent | Operator | Developer | Auditor |
+|------------|--------|-------------|-------|----------|-----------|---------|
+| **调用 LLM API** | ❌ | ✅ | 按需* | ❌ | ❌ | ❌ |
+| **访问生产监控** | ❌ | ❌ | 按需* | 审批后 | ❌ | 只读 |
+| **读取源代码** | ❌ | ❌ | 按需* | ✅ | ✅ | ❌ |
+| **执行测试代码** | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ |
+| **写入 RAG/知识图谱** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **修改规则引擎** | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| **审批高危操作** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **查看审计日志** | ❌ | ❌ | ❌ | ✅ | 自己的 | ✅ |
+| **系统配置变更** | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+
+> *Agent 的权限为「按需授予」：Test Generator Agent 可调用 LLM API 和读取源代码，但不可访问生产监控；Quality Data Agent 可访问生产监控，但不可调用 LLM API。
+
+#### 2.3.3 权限验证流程
+
+```
+Agent 发起操作请求
+    │
+    ▼
+┌─────────────────┐
+│ 身份认证        │  ──► 验证 JWT Token 签名和有效期
+│ (Authentication)│
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ 权限校验        │  ──► 查询 RBAC 矩阵，确认角色是否有该权限
+│ (Authorization) │  ──► 检查「按需」权限：该 Agent 实例是否被显式授权
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ 资源级鉴权      │  ──► 该 Agent 是否有权访问「这个项目」的源代码？
+│ (Resource ACL)  │  ──► 该 Developer 是否有权查看「这个团队」的测试报告？
+└────────┬────────┘
+         │
+         ▼
+    允许 / 拒绝（记录拒绝原因到审计日志）
+```
+
+### 2.4 代码安全（沙箱执行）
+
+#### 2.4.1 沙箱技术选型
+
+| 方案 | 隔离级别 | 启动延迟 | 资源开销 | 适用场景 | 推荐度 |
+|------|---------|---------|---------|---------|--------|
+| **gVisor** | 系统调用拦截（用户态内核） | ~100ms | 低（无硬件虚拟化开销） | **默认方案**：执行生成的测试代码，兼容 Docker 生态 | ⭐⭐⭐⭐⭐ |
+| **Firecracker MicroVM** | 硬件虚拟化（KVM） | ~125ms | 中（需分配独立内存） | 高隔离要求：执行来源不明的第三方代码 | ⭐⭐⭐⭐ |
+| **nsjail + seccomp** | Linux 命名空间 + 系统调用过滤 | ~10ms | 极低 | 低延迟要求：已知可信代码的快速执行 | ⭐⭐⭐ |
+| **Kubernetes + Pod Security** | 容器级（cgroups + capabilities） | ~1s | 中 | 已有 K8s 基础设施，执行环境即 Pod | ⭐⭐⭐ |
+
+**默认推荐：gVisor + seccomp 配置文件**
+
+#### 2.4.2 gVisor 安全配置
+
+```yaml
+# runsc 配置 (config.toml)
+[runsc_config]
+  # 使用 ptrace 平台（兼容性最好，性能稍低）
+  # 生产环境可切换至 kvm 平台（需宿主支持嵌套虚拟化）
+  platform = "ptrace"
+
+  # 文件系统隔离
+  [runsc_config.mounts]
+    # 被测代码：只读挂载
+    "/app/src" = { source = "/host/src", type = "bind", options = ["ro", "nosuid", "nodev"] }
+    # 测试输出：可写，但启用 noexec
+    "/app/output" = { source = "/host/output", type = "bind", options = ["rw", "nosuid", "nodev", "noexec"] }
+    # 临时目录：可写，大小限制 1GB
+    "/tmp" = { type = "tmpfs", options = ["size=1g", "nosuid", "nodev", "noexec"] }
+
+  # 网络隔离：仅允许访问白名单地址
+  [runsc_config.network]
+    # 默认拒绝所有出站连接
+    default_policy = "deny"
+    # 白名单：测试环境服务
+    allow_list = [
+      "10.0.0.0/8:8080",      # 内部测试服务
+      "10.0.0.0/8:3306",      # 测试数据库
+      "169.254.169.254:80",   # 元数据服务（如需要）
+    ]
+
+  # 资源限制
+  [runsc_config.resources]
+    cpu_quota = 100000        # 1 vCPU (100ms/100ms)
+    memory_limit = 2147483648 # 2GB
+    max_open_files = 1024
+    max_processes = 32
+```
+
+#### 2.4.3 测试代码执行流程
+
+```
+生成的测试代码
+    │
+    ▼
+┌─────────────────┐
+│ 静态安全检查    │  ──► 禁止导入 os/sys/subprocess 等危险模块
+│ (Static Scan)   │  ──► 禁止文件系统写操作（除 /tmp 和 /app/output）
+└────────┬────────┘
+         │ 检查失败 ──► 阻断并告警
+         ▼ 检查通过
+┌─────────────────┐
+│ 依赖审计        │  ──► 扫描 requirements.txt / package.json
+│ (Dependency     │  ──► 检查已知漏洞（集成 Snyk/OSV）
+│  Audit)         │  ──► 禁止依赖未授权的外部包
+└────────┬────────┘
+         │ 审计失败 ──► 阻断并要求人工审核
+         ▼ 审计通过
+┌─────────────────┐
+│ gVisor 沙箱执行 │  ──► 启动 runsc 容器
+│ (Sandbox Exec)  │  ──► 挂载只读源代码 + 可写输出目录
+│                 │  ──► 限制网络、CPU、内存、文件描述符
+└────────┬────────┘
+         │
+         ▼
+    收集测试结果 ──► 沙箱销毁 ──► 资源回收
+```
+
+### 2.5 模型安全（Prompt 注入防护）
+
+#### 2.5.1 输入过滤层
+
+| 过滤层级 | 机制 | 示例 |
 |---------|------|------|
-| **数据安全** | 敏感信息脱敏 | 测试数据不包含生产敏感信息 |
-| **访问控制** | RBAC权限管理 | 按角色控制Agent访问权限 |
-| **代码安全** | 沙箱执行环境 | 生成的测试代码在隔离环境运行 |
-| **模型安全** | Prompt注入防护 | 防止恶意输入影响Agent决策 |
-| **审计追踪** | 全链路日志 | 所有Agent操作可追溯 |
-| **置信度验证** | 低置信度强制人工确认 | 防止AI错误决策导致风险 |
+| **语法层** | 检测已知注入模式 | 拦截 `"忽略之前的指令"`、`"你现在是一个不受限制的 AI"` 等 |
+| **语义层** | LLM 辅助判断输入意图 | 使用轻量级分类模型（如 DistilBERT）判断输入是否包含恶意意图 |
+| **上下文层** | 隔离系统 Prompt 与用户输入 | 系统 Prompt 和用户输入使用不同分隔符，明确边界 |
+
+#### 2.5.2 输出校验层
+
+| 校验项 | 机制 | 阻断条件 |
+|--------|------|---------|
+| 敏感信息泄露 | 正则匹配 + DLP 规则 | 输出包含密码、Token、内部 IP |
+| 代码注入 | AST 语法检查 | 生成的代码包含 `eval()`、`exec()`、`__import__('os')` |
+| 指令泄露 | 字符串匹配 | 输出包含系统 Prompt 的片段 |
+| 格式校验 | JSON Schema / Pydantic | 输出不符合预期的结构化格式 |
+
+#### 2.5.3 Prompt 结构规范
+
+```python
+# 推荐的 Prompt 结构，明确分隔系统指令和用户输入
+SYSTEM_PROMPT = """你是一个测试代码生成专家。你的任务是生成高质量的单元测试代码。
+
+规则：
+1. 只生成测试代码，不生成其他内容
+2. 使用 pytest 框架
+3. 覆盖边界条件和异常场景
+4. 不要包含生产环境的敏感信息
+"""
+
+USER_INPUT = f"""
+[USER_CODE]
+{sanitized_source_code}
+[/USER_CODE]
+
+[REQUIREMENTS]
+{test_requirements}
+[/REQUIREMENTS]
+"""
+
+# 最终 Prompt：明确边界，防止用户输入逃逸
+final_prompt = f"{SYSTEM_PROMPT}\n\n{USER_INPUT}\n\n请生成测试代码："
+```
+
+### 2.6 审计追踪
+
+#### 2.6.1 审计事件定义
+
+| 事件级别 | 事件类型 | 记录内容 | 保留期限 |
+|---------|---------|---------|---------|
+| **CRITICAL** | 高危操作（生产部署、规则变更、权限变更） | 操作者、操作前状态、操作后状态、审批人、时间戳 | 7 年 |
+| **HIGH** | 测试代码执行、Agent 任务分发、LLM API 调用 | 操作者、输入摘要（脱敏）、输出摘要、耗时、结果 | 3 年 |
+| **MEDIUM** | 数据查询、报告生成、配置读取 | 操作者、查询参数、返回数据量 | 1 年 |
+| **LOW** | 健康检查、只读监控数据查询 | 操作者、时间戳 | 90 天 |
+
+#### 2.6.2 审计日志格式
+
+```json
+{
+  "event_id": "uuid-v4",
+  "timestamp": "2026-04-26T10:30:00Z",
+  "level": "HIGH",
+  "event_type": "LLM_API_CALL",
+  "actor": {
+    "type": "Agent",
+    "id": "test-generator-agent-01",
+    "role": "Agent"
+  },
+  "action": {
+    "type": "generate_test_code",
+    "input_hash": "sha256:abc123...",
+    "output_hash": "sha256:def456...",
+    "model": "gpt-4o",
+    "tokens_used": 2048,
+    "latency_ms": 3200,
+    "result": "success"
+  },
+  "context": {
+    "task_id": "task-uuid",
+    "project": "payment-service",
+    "trace_id": "trace-uuid"
+  },
+  "integrity": {
+    "prev_hash": "sha256:prev...",
+    "signature": "hmac-sha256:sign..."
+  }
+}
+```
+
+#### 2.6.3 日志完整性保护
+
+```python
+import hashlib
+import hmac
+
+class TamperProofLogger:
+    def __init__(self, secret_key: bytes):
+        self.secret_key = secret_key
+        self.prev_hash = "0" * 64  # 初始哈希
+    
+    def log(self, event: dict) -> dict:
+        # 计算事件哈希（包含前一个事件的哈希，形成链式结构）
+        event["integrity"] = {
+            "prev_hash": self.prev_hash,
+        }
+        event_json = json.dumps(event, sort_keys=True)
+        event_hash = hashlib.sha256(event_json.encode()).hexdigest()
+        event["integrity"]["signature"] = hmac.new(
+            self.secret_key,
+            event_hash.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        
+        self.prev_hash = event_hash
+        return event
+```
+
+### 2.7 置信度验证与人工确认
+
+#### 2.7.1 置信度计算因素
+
+| 因素 | 权重 | 说明 |
+|------|------|------|
+| 历史成功率 | 30% | 该 Agent / 该类型任务的历史成功率 |
+| 输入置信度 | 20% | 输入数据的完整性和清晰度评分 |
+| 模型置信度 | 25% | LLM 输出的 logprob 均值 |
+| 规则匹配度 | 15% | 输出与规则引擎预期模式的匹配程度 |
+| 环境稳定性 | 10% | 当前系统健康状态（依赖服务可用性） |
+
+#### 2.7.2 人工确认网关
+
+```
+Agent 生成结果
+    │
+    ▼
+┌─────────────────┐
+│ 置信度计算      │  ──► 综合评分 = Σ(因素 × 权重)
+│ (Scoring)       │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+ ≥ 0.95    < 0.95
+    │         │
+    ▼         ▼
+ 自动执行   ┌─────────────────┐
+            │ 人工确认网关    │
+            │ (Approval Gate) │
+            └────────┬────────┘
+                     │
+            ┌────────┴────────┐
+            ▼                 ▼
+        0.85 ~ 0.95         < 0.85
+            │                 │
+            ▼                 ▼
+    通知后执行            强制确认
+    (5分钟撤销窗口)       (必须人工审批)
+```
 
 ---
 
@@ -73,6 +424,198 @@
 | **AI置信度计算** | < 1秒 | 实时置信度评估 |
 | **Harness Policy检查** | < 2秒 | 策略引擎响应时间 |
 
+### 3.2 性能指标验证体系
+
+> **核心原则**：每个性能指标必须有对应的自动化验证方法、测试集和统计置信区间。
+
+#### 3.2.1 验证方法矩阵
+
+| 指标 | 验证方法 | 测试集规模 | 测试频率 | 统计方法 |
+|------|---------|-----------|---------|---------|
+| **代码理解速度** | 基准测试：解析标准代码库（Spring PetClinic, 5K 行） | 10 个不同规模代码库 | 每次发布 | 均值 ± 95% CI |
+| **测试生成速度** | 端到端测试：测量从输入到输出完整耗时 | 100 个典型测试场景 | 每次发布 | P50/P95/P99 |
+| **根因分析准确率** | 人工标注数据集：已知根因的故障案例 | ≥ 100 条标注案例 | 每周 | 准确率 ± 95% CI |
+| **RAG 检索延迟** | 负载测试：模拟并发查询 | 1000 次查询 | 每天 | P95/P99 |
+| **并发处理能力** | 压力测试：逐步增加并发 Agent 数量 | 1~50 Agent 梯度 | 每次发布 | 吞吐量曲线 |
+| **内存使用** | 资源监控：长时间运行 Profiler | 24 小时持续运行 | 每周 | 峰值 / 均值 |
+
+#### 3.2.2 根因分析准确率测试集（示例）
+
+```json
+{
+  "test_set_version": "v1.0",
+  "total_cases": 100,
+  "categories": {
+    "dependency_issue": 25,
+    "configuration_error": 20,
+    "code_bug": 30,
+    "environment_problem": 15,
+    "test_flakiness": 10
+  },
+  "cases": [
+    {
+      "id": "RCA-001",
+      "category": "dependency_issue",
+      "input": {
+        "error_log": "NoClassDefFoundError: org/apache/commons/lang3/StringUtils",
+        "stack_trace": "...",
+        "recent_changes": ["pom.xml: upgraded commons-lang3 to 3.13.0"]
+      },
+      "expected_root_causes": [
+        "依赖版本冲突：commons-lang3 3.13.0 与现有传递依赖不兼容",
+        "Maven 依赖解析失败：本地仓库缓存损坏",
+        "构建环境 JDK 版本不匹配"
+      ],
+      "expected_top1": "依赖版本冲突：commons-lang3 3.13.0 与现有传递依赖不兼容"
+    }
+  ]
+}
+```
+
+#### 3.2.3 统计置信区间计算
+
+```python
+"""
+性能指标统计验证工具
+
+SLO:
+- 测试集覆盖率: 100% 生产指标
+- 置信区间精度: 95%
+- 报告生成延迟: < 5分钟
+"""
+
+import numpy as np
+from typing import List, Dict, Tuple
+from scipy import stats
+from dataclasses import dataclass
+
+
+@dataclass
+class MetricResult:
+    metric_name: str
+    samples: List[float]
+    target_value: float
+    unit: str
+    
+    @property
+    def mean(self) -> float:
+        return np.mean(self.samples)
+    
+    @property
+    def std(self) -> float:
+        return np.std(self.samples, ddof=1)
+    
+    @property
+    def percentile_50(self) -> float:
+        return np.percentile(self.samples, 50)
+    
+    @property
+    def percentile_95(self) -> float:
+        return np.percentile(self.samples, 95)
+    
+    @property
+    def percentile_99(self) -> float:
+        return np.percentile(self.samples, 99)
+    
+    def confidence_interval(self, confidence: float = 0.95) -> Tuple[float, float]:
+        """计算均值的置信区间"""
+        n = len(self.samples)
+        if n < 2:
+            return (self.mean, self.mean)
+        
+        sem = self.std / np.sqrt(n)  # 标准误
+        t_value = stats.t.ppf((1 + confidence) / 2, n - 1)
+        margin = t_value * sem
+        
+        return (self.mean - margin, self.mean + margin)
+    
+    def is_slo_met(self) -> bool:
+        """判断 SLO 是否满足（使用置信区间上界/下界保守估计）"""
+        ci_lower, ci_upper = self.confidence_interval()
+        
+        # 对于"小于"类指标（如延迟），使用置信区间上界
+        if self.unit in ["seconds", "ms", "minutes"]:
+            return ci_upper <= self.target_value
+        
+        # 对于"大于"类指标（如准确率），使用置信区间下界
+        if self.unit in ["percent", "ratio"]:
+            return ci_lower >= self.target_value
+        
+        return self.mean <= self.target_value
+    
+    def to_report(self) -> Dict:
+        ci = self.confidence_interval()
+        return {
+            "metric": self.metric_name,
+            "target": f"{self.target_value} {self.unit}",
+            "samples": len(self.samples),
+            "mean": f"{self.mean:.2f}",
+            "std": f"{self.std:.2f}",
+            "p50": f"{self.percentile_50:.2f}",
+            "p95": f"{self.percentile_95:.2f}",
+            "p99": f"{self.percentile_99:.2f}",
+            "ci_95": f"[{ci[0]:.2f}, {ci[1]:.2f}]",
+            "slo_met": self.is_slo_met(),
+        }
+
+
+def run_benchmark(
+    metric_name: str,
+    target_value: float,
+    unit: str,
+    test_func: callable,
+    iterations: int = 100,
+) -> MetricResult:
+    """
+    运行基准测试
+    
+    Args:
+        metric_name: 指标名称
+        target_value: SLO 目标值
+        unit: 单位
+        test_func: 测试函数，返回单次测量值
+        iterations: 迭代次数
+    
+    Returns:
+        MetricResult 对象
+    """
+    samples = []
+    for i in range(iterations):
+        try:
+            value = test_func()
+            samples.append(value)
+        except Exception as e:
+            print(f"Iteration {i} failed: {e}")
+    
+    return MetricResult(
+        metric_name=metric_name,
+        samples=samples,
+        target_value=target_value,
+        unit=unit,
+    )
+
+
+# 使用示例
+if __name__ == "__main__":
+    # 假设测试生成速度测试
+    def mock_test_generation():
+        import random
+        return random.gauss(45, 10)  # 模拟 45s ± 10s
+    
+    result = run_benchmark(
+        metric_name="test_generation_speed",
+        target_value=60,
+        unit="seconds",
+        test_func=mock_test_generation,
+        iterations=100,
+    )
+    
+    report = result.to_report()
+    print(f"\n=== {report['metric']} 基准测试报告 ===")
+    for key, value in report.items():
+        print(f"  {key}: {value}")
+```
+
 ---
 
 ## 四、DORA 效能指标目标
@@ -87,11 +630,541 @@
 
 ---
 
-## 五、容错与降级策略
+## 五、LLM 基础设施工程实现
+
+### 5.1 多提供商路由与自动降级
+
+#### 5.1.1 路由策略决策矩阵
+
+| 场景 | 首选提供商 | 次选提供商 | 触发条件 | 切换延迟目标 |
+|------|-----------|-----------|---------|-------------|
+| 代码生成（长文本） | OpenAI GPT-4o | Anthropic Claude 3.5 Sonnet | GPT-4o 不可用或超时 > 30s | < 5s |
+| 测试分析（结构化输出） | Anthropic Claude 3 Haiku | OpenAI GPT-3.5 Turbo | 需要低延迟（< 2s） | < 3s |
+| 中文场景优化 | 阿里云通义千问 | 百度文心一言 | 中文代码注释理解 | < 5s |
+| 离线/合规场景 | 本地 Llama 3 70B | vLLM 推理服务 | 数据不可出境 | < 10s |
+| 成本敏感批量任务 | DeepSeek V2 | 本地模型 | 非关键路径，可接受质量下降 | < 5s |
+
+#### 5.1.2 生产级 LLM 路由器实现
+
+```python
+"""
+Quality Agent LLM 路由器
+
+SLO:
+- 故障切换延迟: < 5s (P95)
+- 请求成功率: > 99.5% (排除提供商全局故障)
+- Token 成本追踪精度: 100% (每笔请求记录实际消耗)
+- 降级透明度: 100% (所有降级操作记录审计日志)
+"""
+
+import os
+import time
+import json
+import logging
+from typing import Dict, List, Optional, Callable
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from tenacity import retry, stop_after_attempt, wait_exponential
+import openai
+import anthropic
+
+logger = logging.getLogger(__name__)
+
+
+class ProviderStatus(Enum):
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"  # 响应慢但仍可用
+    UNAVAILABLE = "unavailable"
+
+
+@dataclass
+class ProviderConfig:
+    name: str
+    client: Any
+    model: str
+    priority: int  # 数字越小优先级越高
+    max_tokens: int = 4096
+    timeout: float = 30.0
+    cost_per_1k_input: float = 0.0   # USD
+    cost_per_1k_output: float = 0.0  # USD
+    region: str = "us"  # us, cn, eu
+    capabilities: List[str] = field(default_factory=list)
+
+
+@dataclass
+class LLMRequest:
+    prompt: str
+    task_type: str  # code_generation, analysis, summarization
+    expected_output_tokens: int = 1000
+    require_structured_output: bool = False
+    sensitive_data: bool = False  # 是否包含敏感数据，影响提供商选择
+
+
+@dataclass
+class LLMResponse:
+    content: str
+    provider: str
+    model: str
+    latency_ms: float
+    tokens_input: int
+    tokens_output: int
+    cost_usd: float
+    cached: bool = False
+
+
+class LLMRouter:
+    """
+    LLM 多提供商路由器
+    
+    职责:
+    1. 根据任务类型和提供商健康状态智能路由
+    2. 自动故障切换，支持熔断机制
+    3. Token 成本实时追踪和预算控制
+    4. 响应缓存，减少重复请求
+    """
+    
+    def __init__(
+        self,
+        providers: List[ProviderConfig],
+        daily_budget_usd: float = 1000.0,
+        cache_ttl_seconds: int = 3600,
+    ):
+        self.providers = {p.name: p for p in sorted(providers, key=lambda x: x.priority)}
+        self.provider_status = {p.name: ProviderStatus.HEALTHY for p in providers}
+        self.circuit_breakers = {p.name: {"failures": 0, "last_failure": None} for p in providers}
+        
+        self.daily_budget = daily_budget_usd
+        self.daily_spend = 0.0
+        self.spend_reset_time = datetime.utcnow().replace(hour=0, minute=0, second=0)
+        
+        self.cache = {}
+        self.cache_ttl = cache_ttl_seconds
+        
+        # 熔断配置
+        self.circuit_threshold = 5       # 连续失败 5 次触发熔断
+        self.circuit_recovery_seconds = 60  # 熔断后 60 秒尝试恢复
+    
+    def route(self, request: LLMRequest) -> LLMResponse:
+        """
+        智能路由请求到合适的 LLM 提供商
+        
+        路由逻辑:
+        1. 检查缓存（相同 prompt + task_type）
+        2. 根据任务类型筛选有能力的提供商
+        3. 排除熔断中的提供商
+        4. 按优先级排序，选择健康且成本最优的提供商
+        5. 执行请求，记录指标
+        6. 失败时自动切换到次选提供商
+        """
+        # 1. 缓存检查
+        cache_key = self._cache_key(request)
+        if cache_key in self.cache:
+            cached = self.cache[cache_key]
+            if datetime.utcnow() - cached["time"] < timedelta(seconds=self.cache_ttl):
+                logger.info(f"Cache hit for task_type={request.task_type}")
+                return LLMResponse(
+                    content=cached["content"],
+                    provider=cached["provider"],
+                    model=cached["model"],
+                    latency_ms=0,
+                    tokens_input=cached["tokens_input"],
+                    tokens_output=cached["tokens_output"],
+                    cost_usd=0,
+                    cached=True,
+                )
+        
+        # 2. 预算检查
+        self._reset_daily_spend_if_needed()
+        if self.daily_spend >= self.daily_budget:
+            logger.error("Daily budget exceeded. Blocking request.")
+            raise RuntimeError("Daily LLM budget exceeded. Contact operator.")
+        
+        # 3. 筛选可用提供商
+        candidates = self._select_providers(request)
+        if not candidates:
+            raise RuntimeError("No available LLM providers for this request")
+        
+        # 4. 尝试执行，自动故障切换
+        last_error = None
+        for provider_name in candidates:
+            try:
+                response = self._execute(provider_name, request)
+                self._update_circuit_breaker(provider_name, success=True)
+                self._cache_response(cache_key, response)
+                self.daily_spend += response.cost_usd
+                return response
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Provider {provider_name} failed: {e}")
+                self._update_circuit_breaker(provider_name, success=False)
+                self.provider_status[provider_name] = ProviderStatus.DEGRADED
+        
+        # 所有提供商都失败
+        logger.error(f"All providers failed for task_type={request.task_type}: {last_error}")
+        raise RuntimeError(f"All LLM providers unavailable: {last_error}")
+    
+    def _select_providers(self, request: LLMRequest) -> List[str]:
+        """根据任务类型和提供商状态筛选候选提供商"""
+        candidates = []
+        for name, config in self.providers.items():
+            # 检查熔断状态
+            cb = self.circuit_breakers[name]
+            if cb["failures"] >= self.circuit_threshold:
+                if cb["last_failure"] and \
+                   (datetime.utcnow() - cb["last_failure"]).seconds < self.circuit_recovery_seconds:
+                    continue  # 仍在熔断期
+            
+            # 检查能力匹配
+            if request.task_type not in config.capabilities:
+                continue
+            
+            # 敏感数据限制
+            if request.sensitive_data and config.region != "cn":
+                continue  # 敏感数据不出境
+            
+            candidates.append(name)
+        
+        # 按优先级排序
+        candidates.sort(key=lambda n: self.providers[n].priority)
+        return candidates
+    
+    def _execute(self, provider_name: str, request: LLMRequest) -> LLMResponse:
+        """执行 LLM 请求"""
+        config = self.providers[provider_name]
+        start = time.time()
+        
+        if provider_name == "openai":
+            result = self._call_openai(config, request)
+        elif provider_name == "anthropic":
+            result = self._call_anthropic(config, request)
+        else:
+            result = self._call_generic(config, request)
+        
+        latency_ms = (time.time() - start) * 1000
+        
+        # 计算成本
+        cost = (result["tokens_input"] / 1000 * config.cost_per_1k_input +
+                result["tokens_output"] / 1000 * config.cost_per_1k_output)
+        
+        return LLMResponse(
+            content=result["content"],
+            provider=provider_name,
+            model=config.model,
+            latency_ms=latency_ms,
+            tokens_input=result["tokens_input"],
+            tokens_output=result["tokens_output"],
+            cost_usd=cost,
+        )
+    
+    def _call_openai(self, config: ProviderConfig, request: LLMRequest) -> Dict:
+        """调用 OpenAI API"""
+        response = config.client.chat.completions.create(
+            model=config.model,
+            messages=[{"role": "user", "content": request.prompt}],
+            max_tokens=config.max_tokens,
+            timeout=config.timeout,
+        )
+        return {
+            "content": response.choices[0].message.content,
+            "tokens_input": response.usage.prompt_tokens,
+            "tokens_output": response.usage.completion_tokens,
+        }
+    
+    def _call_anthropic(self, config: ProviderConfig, request: LLMRequest) -> Dict:
+        """调用 Anthropic API"""
+        response = config.client.messages.create(
+            model=config.model,
+            max_tokens=config.max_tokens,
+            messages=[{"role": "user", "content": request.prompt}],
+            timeout=config.timeout,
+        )
+        return {
+            "content": response.content[0].text,
+            "tokens_input": response.usage.input_tokens,
+            "tokens_output": response.usage.output_tokens,
+        }
+    
+    def _update_circuit_breaker(self, provider_name: str, success: bool):
+        """更新熔断器状态"""
+        cb = self.circuit_breakers[provider_name]
+        if success:
+            cb["failures"] = 0
+            self.provider_status[provider_name] = ProviderStatus.HEALTHY
+        else:
+            cb["failures"] += 1
+            cb["last_failure"] = datetime.utcnow()
+            if cb["failures"] >= self.circuit_threshold:
+                self.provider_status[provider_name] = ProviderStatus.UNAVAILABLE
+                logger.error(f"Circuit breaker OPEN for provider: {provider_name}")
+    
+    def _cache_key(self, request: LLMRequest) -> str:
+        """生成缓存键"""
+        return f"{request.task_type}:{hash(request.prompt) % 10000000}"
+    
+    def _cache_response(self, key: str, response: LLMResponse):
+        """缓存响应"""
+        self.cache[key] = {
+            "content": response.content,
+            "provider": response.provider,
+            "model": response.model,
+            "tokens_input": response.tokens_input,
+            "tokens_output": response.tokens_output,
+            "time": datetime.utcnow(),
+        }
+    
+    def _reset_daily_spend_if_needed(self):
+        """重置每日消费计数"""
+        now = datetime.utcnow()
+        if now.date() != self.spend_reset_time.date():
+            self.daily_spend = 0.0
+            self.spend_reset_time = now
+    
+    def get_health(self) -> Dict:
+        """获取路由器健康状态"""
+        return {
+            "providers": {
+                name: {
+                    "status": status.value,
+                    "circuit_failures": self.circuit_breakers[name]["failures"],
+                }
+                for name, status in self.provider_status.items()
+            },
+            "daily_budget": self.daily_budget,
+            "daily_spend": self.daily_spend,
+            "budget_remaining": self.daily_budget - self.daily_spend,
+            "cache_size": len(self.cache),
+        }
+```
+
+### 5.2 Prompt 治理与版本控制
+
+#### 5.2.1 Prompt 管理规范
+
+| 规范项 | 要求 | 验收标准 |
+|--------|------|---------|
+| **版本控制** | 所有生产 Prompt 纳入 Git 管理 | 100% 生产 Prompt 有版本历史 |
+| **变更审批** | Prompt 修改需 Pull Request + Code Review | 零未经审批的 Prompt 变更进入生产 |
+| **A/B 测试** | 重大 Prompt 变更需对比实验 | 变更前后指标差异可量化 |
+| **回滚能力** | 支持秒级 Prompt 版本回滚 | 回滚时间 < 30s |
+| **效果追踪** | 每个 Prompt 版本关联质量指标 | 可追踪到具体 Prompt 版本的生成质量 |
+
+#### 5.2.2 Prompt 版本控制实现
+
+```python
+"""
+Prompt 版本控制系统
+
+SLO:
+- 版本切换延迟: < 30s
+- 版本追溯覆盖率: 100%
+- 未经审批变更拦截率: 100%
+"""
+
+import hashlib
+import json
+from typing import Dict, Optional
+from dataclasses import dataclass
+from datetime import datetime
+
+
+@dataclass
+class PromptVersion:
+    version_id: str       # git commit hash
+    prompt_text: str
+    author: str
+    created_at: datetime
+    description: str
+    metrics: Dict          # 该版本的历史表现指标
+    approved: bool         # 是否通过审批
+
+
+class PromptRegistry:
+    """
+    Prompt 注册表：管理所有生产 Prompt 的版本
+    """
+    
+    def __init__(self, storage_path: str = ".prompt_registry"):
+        self.storage_path = storage_path
+        self._prompts: Dict[str, Dict[str, PromptVersion]] = {}  # task_type -> {version_id: version}
+        self._active: Dict[str, str] = {}  # task_type -> active_version_id
+    
+    def register(self, task_type: str, version: PromptVersion):
+        """注册新版本 Prompt"""
+        if task_type not in self._prompts:
+            self._prompts[task_type] = {}
+        self._prompts[task_type][version.version_id] = version
+        logger.info(f"Prompt registered: {task_type}@{version.version_id}")
+    
+    def activate(self, task_type: str, version_id: str):
+        """激活指定版本（需审批通过）"""
+        version = self._prompts.get(task_type, {}).get(version_id)
+        if not version:
+            raise ValueError(f"Version not found: {task_type}@{version_id}")
+        if not version.approved:
+            raise PermissionError(f"Version not approved: {task_type}@{version_id}")
+        
+        self._active[task_type] = version_id
+        logger.info(f"Prompt activated: {task_type}@{version_id}")
+    
+    def get_active(self, task_type: str) -> Optional[PromptVersion]:
+        """获取当前激活的 Prompt 版本"""
+        version_id = self._active.get(task_type)
+        if version_id:
+            return self._prompts.get(task_type, {}).get(version_id)
+        return None
+    
+    def rollback(self, task_type: str) -> str:
+        """
+        回滚到上一个版本
+        
+        Returns:
+            回滚后的版本 ID
+        """
+        versions = sorted(
+            self._prompts.get(task_type, {}).values(),
+            key=lambda v: v.created_at,
+            reverse=True,
+        )
+        current_id = self._active.get(task_type)
+        
+        for v in versions:
+            if v.version_id != current_id and v.approved:
+                self.activate(task_type, v.version_id)
+                return v.version_id
+        
+        raise RuntimeError(f"No previous approved version found for {task_type}")
+```
+
+### 5.3 Token 成本控制与告警
+
+#### 5.3.1 成本分层策略
+
+| 层级 | 月度预算 | 用途 | 超限处理 |
+|------|---------|------|---------|
+| **Critical** | $5000 | 核心功能：测试生成、根因分析 | 立即告警，禁止非关键任务 |
+| **Standard** | $2000 | 标准功能：报告生成、代码审查 | 告警，降级到低成本模型 |
+| **Batch** | $1000 | 批量任务：历史数据补全、批量分析 | 告警，暂停批量任务 |
+| **Emergency** | $1000 | 应急储备：故障响应、紧急修复 | 需审批后使用 |
+
+#### 5.3.2 成本追踪实现
+
+```python
+"""
+Token 成本追踪器
+
+SLO:
+- 成本追踪精度: 100% (与实际账单误差 < 1%)
+- 预算告警延迟: < 5分钟 (从超支到告警)
+- 成本归因粒度: 任务级 (可追踪到单次任务的成本)
+"""
+
+from typing import Dict, List
+from dataclasses import dataclass, field
+from datetime import datetime
+import threading
+
+
+@dataclass
+class CostRecord:
+    task_id: str
+    task_type: str
+    provider: str
+    model: str
+    tokens_input: int
+    tokens_output: int
+    cost_usd: float
+    timestamp: datetime
+    project: str = ""
+
+
+class CostTracker:
+    """
+    Token 成本追踪器
+    
+    职责:
+    1. 记录每笔 LLM 请求的成本
+    2. 按任务类型、项目、提供商聚合成本
+    3. 预算监控和告警
+    4. 生成成本报告
+    """
+    
+    def __init__(self, alert_threshold_percent: float = 80.0):
+        self.records: List[CostRecord] = []
+        self.alert_threshold = alert_threshold_percent
+        self._lock = threading.Lock()
+        self._alerted = False
+    
+    def record(self, record: CostRecord):
+        """记录成本"""
+        with self._lock:
+            self.records.append(record)
+        
+        # 检查预算告警
+        self._check_budget_alert(record.task_type)
+    
+    def get_summary(self, start: datetime, end: datetime) -> Dict:
+        """获取指定时间段的成本汇总"""
+        filtered = [r for r in self.records if start <= r.timestamp <= end]
+        
+        summary = {
+            "total_cost_usd": sum(r.cost_usd for r in filtered),
+            "total_tokens_input": sum(r.tokens_input for r in filtered),
+            "total_tokens_output": sum(r.tokens_output for r in filtered),
+            "by_task_type": {},
+            "by_provider": {},
+            "by_project": {},
+        }
+        
+        for r in filtered:
+            # 按任务类型聚合
+            if r.task_type not in summary["by_task_type"]:
+                summary["by_task_type"][r.task_type] = {"cost": 0, "count": 0}
+            summary["by_task_type"][r.task_type]["cost"] += r.cost_usd
+            summary["by_task_type"][r.task_type]["count"] += 1
+            
+            # 按提供商聚合
+            if r.provider not in summary["by_provider"]:
+                summary["by_provider"][r.provider] = {"cost": 0, "count": 0}
+            summary["by_provider"][r.provider]["cost"] += r.cost_usd
+            summary["by_provider"][r.provider]["count"] += 1
+            
+            # 按项目聚合
+            if r.project:
+                if r.project not in summary["by_project"]:
+                    summary["by_project"][r.project] = {"cost": 0, "count": 0}
+                summary["by_project"][r.project]["cost"] += r.cost_usd
+                summary["by_project"][r.project]["count"] += 1
+        
+        return summary
+    
+    def _check_budget_alert(self, task_type: str):
+        """检查预算告警"""
+        # 简化实现：实际应从配置中读取各层级预算
+        today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        summary = self.get_summary(today, datetime.utcnow())
+        
+        total_cost = summary["total_cost_usd"]
+        # 假设月度预算为 $10000
+        monthly_budget = 10000
+        usage_percent = (total_cost / monthly_budget) * 100
+        
+        if usage_percent >= self.alert_threshold and not self._alerted:
+            logger.warning(
+                f"BUDGET ALERT: Monthly LLM cost at {usage_percent:.1f}% "
+                f"(${total_cost:.2f} / ${monthly_budget})"
+            )
+            self._alerted = True
+            # 实际应调用告警系统（PagerDuty / Slack / 企业微信）
+```
+
+---
+
+## 六、容错与降级策略
 
 | 场景 | 降级策略 | 恢复机制 |
 |-----|---------|---------|
-| **LLM服务不可用** | 使用本地规则引擎 | 服务恢复后自动切换 |
+| **LLM服务不可用** | 使用本地规则引擎 / 切换到备用提供商 | 服务恢复后自动切换 |
 | **VectorDB不可用** | 使用本地缓存 | 数据同步后重建索引 |
 | **测试执行失败** | 重试3次后标记失败 | 人工介入处理 |
 | **代码解析失败** | 使用LLM辅助解析 | 记录失败样本用于优化 |
@@ -104,15 +1177,597 @@
 
 ---
 
-## 六、版本更新记录
+## 八、Knowledge Graph 工程实现
+
+### 8.1 图数据模型 (Schema)
+
+#### 8.1.1 核心实体定义
+
+| 实体类型 | 属性 | 说明 |
+|---------|------|------|
+| **Defect** | `id`, `title`, `severity`, `status`, `created_at`, `resolved_at` | 缺陷/故障 |
+| **TestCase** | `id`, `name`, `type`, `coverage_target`, `automation_status` | 测试用例 |
+| **CodeModule** | `id`, `name`, `language`, `path`, `lines_of_code` | 代码模块 |
+| **Environment** | `id`, `name`, `type`, `version`, `config_hash` | 环境配置 |
+| **Person** | `id`, `name`, `role`, `team` | 人员 |
+| **Deployment** | `id`, `version`, `timestamp`, `status` | 部署记录 |
+
+#### 8.1.2 核心关系定义
+
+| 关系类型 | 起始实体 | 终止实体 | 属性 | 说明 |
+|---------|---------|---------|------|------|
+| **FOUND_IN** | Defect | TestCase | `failure_count`, `last_occurrence` | 缺陷在哪个测试中发现 |
+| **LOCATED_IN** | Defect | CodeModule | `confidence`, `line_number` | 缺陷定位到代码模块 |
+| **CAUSED_BY** | Defect | Deployment | `lag_minutes` | 缺陷由哪次部署引入 |
+| **OWNED_BY** | CodeModule | Person | `ownership_type` | 模块归属 |
+| **DEPENDS_ON** | CodeModule | CodeModule | `dependency_type` | 模块依赖 |
+| **COVERS** | TestCase | CodeModule | `coverage_percent` | 测试覆盖 |
+| **EXECUTED_ON** | TestCase | Environment | `execution_time`, `result` | 测试执行环境 |
+
+#### 8.1.3 Schema 可视化
+
+```
+[Person] ──OWNED_BY──> [CodeModule] <──DEPENDS_ON── [CodeModule]
+   │                        │
+   │                        │
+   │                   COVERS│
+   │                        ▼
+   │                   [TestCase] <──FOUND_IN── [Defect]
+   │                        │
+   │                        │
+   └──EXECUTED_ON────> [Environment]         │
+                                              │
+                                         CAUSED_BY
+                                              │
+                                              ▼
+                                         [Deployment]
+```
+
+### 8.2 图数据库选型决策
+
+| 维度 | Neo4j | Amazon Neptune | NebulaGraph | 推荐 |
+|------|-------|---------------|-------------|------|
+| **查询语言** | Cypher（最成熟） | Gremlin / SPARQL | nGQL（类SQL） | Neo4j |
+| **性能（深度遍历）** | 优秀（原生图存储） | 良好 | 优秀（分布式） | Neo4j / Nebula |
+| **扩展性** | 商业版支持集群 | 托管服务自动扩展 | 水平扩展优秀 | NebulaGraph |
+| **运维复杂度** | 中 | 低（托管） | 高 | Neptune |
+| **成本** | 高（商业授权） | 中（按量付费） | 低（开源） | NebulaGraph |
+| **社区生态** | 最丰富 | AWS生态 | 中等 | Neo4j |
+
+**决策**：
+- **Phase 1**（数据量 < 1000 万节点）：Neo4j Community（免费，生态成熟）
+- **Phase 2**（数据量 > 1000 万节点或需分布式）：迁移至 NebulaGraph（水平扩展）
+- **切换条件**：单节点内存 > 64GB 或写入 QPS > 5000
+
+### 8.3 生产级 Knowledge Graph 实现
+
+```python
+"""
+Quality Agent Knowledge Graph 系统
+
+SLO:
+- 写入延迟: P95 < 200ms (单节点/关系)
+- 查询延迟: P95 < 500ms (3跳以内遍历)
+- 数据一致性: 最终一致性，延迟 < 5s
+- 可用性: > 99.5%
+"""
+
+import os
+import logging
+from typing import List, Dict, Optional, Any
+from dataclasses import dataclass, asdict
+from datetime import datetime
+from contextlib import contextmanager
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Node:
+    """图节点"""
+    label: str       # 实体类型：Defect, TestCase, CodeModule...
+    node_id: str     # 业务唯一ID
+    properties: Dict[str, Any]
+
+
+@dataclass
+class Relationship:
+    """图关系"""
+    rel_type: str    # 关系类型：FOUND_IN, CAUSED_BY...
+    source_id: str   # 起始节点ID
+    target_id: str   # 终止节点ID
+    properties: Dict[str, Any]
+
+
+class KnowledgeGraph:
+    """
+    质量知识图谱
+    
+    职责:
+    1. 存储质量领域实体和关系
+    2. 支持复杂图遍历查询（根因分析、影响面分析）
+    3. 增量更新和冲突解决
+    4. 与 RAG 系统协同（图检索 + 向量检索混合）
+    """
+    
+    def __init__(self, uri: Optional[str] = None, user: str = "neo4j", password: Optional[str] = None):
+        try:
+            from neo4j import GraphDatabase
+            self.driver = GraphDatabase.driver(
+                uri or os.getenv("NEO4J_URI", "bolt://localhost:7687"),
+                auth=(user, password or os.getenv("NEO4J_PASSWORD", "password")),
+            )
+            # 验证连接
+            self.driver.verify_connectivity()
+            logger.info("Knowledge Graph connected")
+        except ImportError:
+            logger.error("neo4j package not installed. Run: pip install neo4j")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to connect to Neo4j: {e}")
+            raise
+    
+    @contextmanager
+    def _session(self):
+        """会话上下文管理器"""
+        session = self.driver.session()
+        try:
+            yield session
+        finally:
+            session.close()
+    
+    def create_node(self, node: Node) -> bool:
+        """
+        创建或更新节点（Merge语义）
+        
+        SLO: P95 < 200ms
+        """
+        cypher = f"""
+        MERGE (n:{node.label} {{node_id: $node_id}})
+        SET n += $properties
+        RETURN n
+        """
+        try:
+            with self._session() as session:
+                session.run(cypher, node_id=node.node_id, properties=node.properties)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to create node {node.node_id}: {e}")
+            return False
+    
+    def create_relationship(self, rel: Relationship) -> bool:
+        """
+        创建关系（自动创建不存在的节点）
+        
+        SLO: P95 < 200ms
+        """
+        cypher = f"""
+        MATCH (a {{node_id: $source_id}}), (b {{node_id: $target_id}})
+        MERGE (a)-[r:{rel.rel_type}]->(b)
+        SET r += $properties
+        RETURN r
+        """
+        try:
+            with self._session() as session:
+                session.run(
+                    cypher,
+                    source_id=rel.source_id,
+                    target_id=rel.target_id,
+                    properties=rel.properties,
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to create relationship {rel.rel_type}: {e}")
+            return False
+    
+    def find_root_cause(self, defect_id: str, max_depth: int = 3) -> List[Dict]:
+        """
+        根因分析：从缺陷出发，反向追溯部署和代码变更
+        
+        Args:
+            defect_id: 缺陷ID
+            max_depth: 最大遍历深度
+            
+        Returns:
+            可能的根因路径列表
+            
+        SLO: P95 < 500ms (3跳遍历)
+        """
+        cypher = """
+        MATCH path = (d:Defect {node_id: $defect_id})<-[:FOUND_IN]-(t:TestCase)
+                      <-[:COVERS]-(m:CodeModule)<-[:CAUSED_BY]-(dep:Deployment)
+        WITH path, dep
+        OPTIONAL MATCH (dep)-[:DEPLOYED_BY]->(p:Person)
+        RETURN dep.node_id as deployment_id,
+               dep.timestamp as deploy_time,
+               p.name as deployer,
+               length(path) as path_length
+        ORDER BY dep.timestamp DESC
+        LIMIT 5
+        """
+        try:
+            with self._session() as session:
+                result = session.run(cypher, defect_id=defect_id)
+                return [record.data() for record in result]
+        except Exception as e:
+            logger.error(f"Root cause analysis failed for {defect_id}: {e}")
+            return []
+    
+    def impact_analysis(self, module_id: str) -> Dict:
+        """
+        影响面分析：给定模块，分析其影响的测试和上游依赖
+        
+        Args:
+            module_id: 代码模块ID
+            
+        Returns:
+            影响面统计
+        """
+        cypher = """
+        MATCH (m:CodeModule {node_id: $module_id})
+        OPTIONAL MATCH (m)<-[:COVERS]-(t:TestCase)
+        OPTIONAL MATCH (m)-[:DEPENDS_ON]->(dep:CodeModule)
+        OPTIONAL MATCH (upstream)-[:DEPENDS_ON]->(m)
+        RETURN count(DISTINCT t) as test_count,
+               count(DISTINCT dep) as downstream_deps,
+               count(DISTINCT upstream) as upstream_deps
+        """
+        try:
+            with self._session() as session:
+                result = session.run(cypher, module_id=module_id)
+                record = result.single()
+                return record.data() if record else {}
+        except Exception as e:
+            logger.error(f"Impact analysis failed for {module_id}: {e}")
+            return {}
+    
+    def batch_ingest(self, nodes: List[Node], relationships: List[Relationship]) -> Dict:
+        """
+        批量导入数据（使用 UNWIND 优化）
+        
+        SLO: 1000 节点/关系的批量写入 < 5s
+        """
+        node_results = {"success": 0, "failed": 0}
+        rel_results = {"success": 0, "failed": 0}
+        
+        # 批量写入节点
+        if nodes:
+            cypher = """
+            UNWIND $nodes as node
+            CALL apoc.merge.node([node.label], {node_id: node.node_id}, node.properties) YIELD node as n
+            RETURN count(n)
+            """
+            try:
+                with self._session() as session:
+                    session.run(cypher, nodes=[asdict(n) for n in nodes])
+                node_results["success"] = len(nodes)
+            except Exception as e:
+                logger.error(f"Batch node ingest failed: {e}")
+                node_results["failed"] = len(nodes)
+        
+        # 批量写入关系
+        if relationships:
+            cypher = """
+            UNWIND $rels as rel
+            MATCH (a {node_id: rel.source_id}), (b {node_id: rel.target_id})
+            CALL apoc.merge.relationship(a, rel.rel_type, {}, rel.properties, b) YIELD rel as r
+            RETURN count(r)
+            """
+            try:
+                with self._session() as session:
+                    session.run(cypher, rels=[asdict(r) for r in relationships])
+                rel_results["success"] = len(relationships)
+            except Exception as e:
+                logger.error(f"Batch relationship ingest failed: {e}")
+                rel_results["failed"] = len(relationships)
+        
+        return {"nodes": node_results, "relationships": rel_results}
+    
+    def close(self):
+        """关闭连接"""
+        if self.driver:
+            self.driver.close()
+```
+
+### 8.4 增量更新与冲突解决
+
+```
+数据变更事件（来自CI/CD、监控系统、人工录入）
+    │
+    ▼
+┌─────────────────┐
+│ 变更分类器      │  ──► 判断变更类型：新增 / 更新 / 删除
+│ (Classifier)    │  ──► 判断实体类型：Defect / TestCase / Deployment...
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ 冲突检测        │  ──► 检查同一实体是否已有不同版本
+│ (Conflict Check)│  ──► 冲突策略：时间戳优先 / 人工仲裁 / 合并字段
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+ 无冲突      有冲突
+    │         │
+    ▼         ▼
+┌────────┐  ┌─────────────────┐
+│ 直接写入│  │ 冲突解决引擎    │
+│ (Write)│  │ (Resolver)      │
+└────────┘  └────────┬────────┘
+                     │
+            ┌────────┴────────┐
+            ▼                 ▼
+        自动解决            人工仲裁
+            │                 │
+            ▼                 ▼
+        时间戳优先         生成冲突报告
+        或字段合并         通知管理员
+```
+
+### 8.5 与 RAG 系统的混合检索
+
+```python
+"""
+图检索 + 向量检索混合查询
+
+场景：根因分析时，先用图遍历定位相关实体，再用 RAG 检索历史经验
+"""
+
+def hybrid_retrieval(kg: KnowledgeGraph, rag: ExperienceMemory, defect_id: str) -> Dict:
+    """
+    混合检索：Knowledge Graph + RAG
+    
+    1. 从 KG 获取缺陷相关的代码模块、测试用例、部署记录
+    2. 将这些上下文格式化为查询文本
+    3. 用 RAG 检索相似历史经验
+    """
+    # Step 1: 图遍历获取上下文
+    context = kg.find_root_cause(defect_id, max_depth=3)
+    
+    # Step 2: 格式化查询
+    query_parts = [f"缺陷 {defect_id} 的根因分析"]
+    for item in context:
+        query_parts.append(
+            f"部署 {item['deployment_id']} 由 {item['deployer']} 在 {item['deploy_time']} 执行"
+        )
+    
+    query_text = "\n".join(query_parts)
+    
+    # Step 3: RAG 检索
+    similar_cases = rag.retrieve_similar(query_text, top_k=5)
+    
+    return {
+        "graph_context": context,
+        "similar_cases": similar_cases,
+    }
+```
+
+---
+
+## 九、Agent 通信与状态管理
+
+### 9.1 通信协议设计
+
+#### 9.1.1 消息格式规范
+
+```json
+{
+  "message_id": "uuid-v4",
+  "trace_id": "全局追踪ID",
+  "timestamp": "2026-04-26T10:30:00Z",
+  "source": {
+    "agent_type": "TestGenerator",
+    "agent_id": "agent-01",
+    "version": "v2.1.0"
+  },
+  "target": {
+    "agent_type": "ExecutionAgent",
+    "agent_id": "agent-02"
+  },
+  "message_type": "TASK_ASSIGNMENT",
+  "payload": {
+    "task_id": "task-uuid",
+    "priority": "HIGH",
+    "deadline": "2026-04-26T11:00:00Z",
+    "data": {}
+  },
+  "signature": "HMAC-SHA256签名"
+}
+```
+
+#### 9.1.2 消息类型枚举
+
+| 消息类型 | 方向 | 说明 |
+|---------|------|------|
+| **TASK_ASSIGNMENT** | Orchestrator → Agent | 任务分配 |
+| **TASK_RESULT** | Agent → Orchestrator | 任务结果回报 |
+| **HEARTBEAT** | Agent → Orchestrator | 健康心跳（每30s） |
+| **STATUS_UPDATE** | Agent → Orchestrator | 状态变更通知 |
+| **COORDINATION** | Agent ↔ Agent | 协同工作（如数据共享） |
+| **ERROR_REPORT** | Agent → Orchestrator | 异常报告 |
+
+### 9.2 Agent 状态机
+
+```
+                    ┌─────────────┐
+                    │   IDLE      │
+                    │  (空闲)     │
+                    └──────┬──────┘
+                           │ 收到任务
+                           ▼
+                    ┌─────────────┐
+         ┌─────────│  ASSIGNED   │
+         │         │  (已分配)   │
+         │         └──────┬──────┘
+         │                │ 开始执行
+         │                ▼
+         │         ┌─────────────┐     需要协同
+         │         │  EXECUTING  │──────────────┐
+         │         │  (执行中)   │              │
+         │         └──────┬──────┘              │
+         │                │                     │
+         │        ┌───────┴───────┐             │
+         │        ▼               ▼             │
+         │  ┌─────────┐    ┌──────────┐        │
+         │  │ SUCCESS │    │  FAILED  │        │
+         │  │(成功)   │    │ (失败)   │        │
+         │  └────┬────┘    └────┬─────┘        │
+         │       │              │              │
+         │       └──────┬───────┘              │
+         │              ▼                      │
+         │       ┌─────────────┐               │
+         └───────│  COMPLETED  │◄──────────────┘
+                 │  (已完成)   │   (协同完成)
+                 └─────────────┘
+```
+
+### 9.3 接口契约定义
+
+```python
+"""
+Agent 间通信接口契约
+
+SLO:
+- 消息投递成功率: > 99.9%
+- 消息延迟: P95 < 100ms (同机房)
+- 状态同步延迟: < 5s
+"""
+
+from typing import Protocol, runtime_checkable
+from dataclasses import dataclass
+from enum import Enum
+
+
+class AgentStatus(Enum):
+    IDLE = "idle"
+    ASSIGNED = "assigned"
+    EXECUTING = "executing"
+    WAITING = "waiting"  # 等待协同
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+@dataclass
+class Task:
+    task_id: str
+    task_type: str
+    priority: int  # 1-5, 数字越小优先级越高
+    payload: dict
+    deadline: Optional[datetime] = None
+
+
+@runtime_checkable
+class AgentInterface(Protocol):
+    """Agent 必须实现的接口契约"""
+    
+    def get_status(self) -> AgentStatus:
+        """获取当前状态"""
+        ...
+    
+    def assign_task(self, task: Task) -> bool:
+        """分配任务"""
+        ...
+    
+    def get_result(self, task_id: str) -> Optional[dict]:
+        """获取任务结果"""
+        ...
+    
+    def send_heartbeat(self) -> dict:
+        """发送心跳"""
+        ...
+```
+
+---
+
+## 十、容错降级策略细化
+
+### 10.1 自动化降级触发条件
+
+| 场景 | 触发条件 | 降级动作 | 自动恢复条件 |
+|------|---------|---------|-------------|
+| **LLM 全局故障** | 所有提供商连续失败 > 5 次 | 切换到规则引擎，禁用 AI 功能 | 任一提供商健康检查通过 |
+| **LLM 响应延迟** | P95 延迟 > 30s 持续 2 分钟 | 降级到轻量级模型（Haiku/3.5-Turbo） | P95 延迟 < 10s 持续 5 分钟 |
+| **VectorDB 不可用** | 连接失败 > 3 次 | 启用本地缓存，禁用经验学习 | 连接恢复且数据同步完成 |
+| **KG 不可用** | 查询超时 > 5s | 根因分析降级为规则分类 | 查询延迟 < 2s |
+| **沙箱执行失败** | 连续 3 次执行异常 | 标记为不可执行，通知人工 | 人工确认后恢复 |
+| **Token 预算超支** | 月度消耗 > 90% | 禁止批量任务，仅保留核心功能 | 下月预算重置 |
+| **并发超限** | 活跃 Agent > 50 | 新任务进入队列，延迟执行 | 活跃 Agent < 40 |
+
+### 10.2 降级 Runbook
+
+```markdown
+# Quality Agent 降级 Runbook
+
+## 1. LLM 全局故障
+
+### 现象
+- 所有 LLM 提供商返回错误
+- Token 消耗骤降为零
+
+### 处置步骤
+1. [自动] 系统切换到规则引擎模式
+2. [自动] 通知值班工程师（PagerDuty）
+3. [人工] 检查各提供商状态页面（OpenAI Status, Anthropic Status）
+4. [人工] 确认是否为全局故障或配置问题
+5. [人工] 如为配置问题，修复后手动触发健康检查
+6. [自动] 健康检查通过后，逐步恢复 AI 功能
+
+### 验证
+- 规则引擎能正常响应基础测试生成请求
+- 监控面板显示 "degraded_mode: rule_engine"
+
+## 2. VectorDB 不可用
+
+### 现象
+- Milvus 连接超时
+- RAG 检索返回空结果
+
+### 处置步骤
+1. [自动] 启用本地 JSON 缓存
+2. [自动] 告警通知
+3. [人工] 检查 Milvus 服务状态（kubectl get pods -n milvus）
+4. [人工] 如为 Pod 故障，重启或扩容
+5. [自动] 服务恢复后，触发索引重建任务
+
+### 验证
+- 本地缓存能返回历史经验（关键词匹配模式）
+- Milvus 恢复后，检索准确率回到 > 85%
+
+## 3. Token 预算超支
+
+### 现象
+- 月度 Token 消耗达到预算 90%
+- 收到预算告警通知
+
+### 处置步骤
+1. [自动] 禁止非关键任务（批量分析、历史补全）
+2. [自动] 通知项目经理和财务
+3. [人工] 评估是否需要紧急追加预算
+4. [人工] 如需追加，审批后调整预算上限
+5. [自动] 预算调整后，恢复全部功能
+
+### 验证
+- 核心功能（测试生成、根因分析）仍可正常使用
+- 批量任务被正确拦截
+```
+
+---
+
+## 七、版本更新记录
 
 | 版本 | 日期 | 更新内容 |
 |------|------|---------|
+| v2.0 | 2026-04-26 | 全面重构安全设计（STRIDE威胁建模、RBAC矩阵、gVisor沙箱）、新增LLM基础设施（多提供商路由、Prompt治理、成本控制）、新增性能指标验证体系（测试集、统计置信区间）、新增Knowledge Graph（Schema、Neo4j实现、混合检索）、Agent通信协议（状态机、接口契约）、容错降级Runbook |
 | v1.1 | 2026-04-23 | 新增 Harness Engineering 集成架构、AI置信度驱动的自动化分级策略、DORA效能指标目标 |
 | v1.0 | 2026-04-23 | 初始版本，包含安全设计原则、性能指标、容错策略 |
 
 ---
 
-**最后更新**：2026-04-23
-**维护者**：Quality Agent 培养计划
-**版本**：v1.1
+## 变更历史
+
+| 版本 | 日期 | 变更内容 | 变更人 |
+|-----|------|---------|--------|
+| v2.0.0 | 2026-04-26 | 全面重构安全设计（STRIDE威胁建模、RBAC矩阵、gVisor沙箱）、新增AI模型基础设施（多提供商路由、Prompt治理、成本控制）、新增性能指标验证体系（测试集、统计置信区间）、新增知识图谱（Schema、Neo4j实现、混合检索）、Agent通信协议（状态机、接口契约）、容错降级Runbook | - |
+| v1.1.0 | 2026-04-23 | 新增 Harness Engineering 集成架构、AI置信度驱动的自动化分级策略、DORA效能指标目标 | - |
+| v1.0.0 | 2026-04-23 | 初始版本，包含安全设计原则、性能指标、容错策略 | - |
