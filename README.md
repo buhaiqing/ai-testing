@@ -118,16 +118,13 @@
 
 ### 2026 年 8 周培养里程碑
 
-| 周次 | 质量智能体能力 | 核心内容 | 代表项目 |
-|------|--------------|---------|---------|
-| **第 1 周** | Level 1: 数据感知 | 理解质量智能体、数据采集与治理 | Quality Data Agent |
-| **第 2 周** | Level 1: 测试生成 | 代码理解、测试框架自动生成 | Test Generator Agent |
-| **第 3 周** | Level 2: 认知分析 | 质量状态评估、风险等级识别 | Risk Predictor Agent |
-| **第 4 周** | Level 2: 根因推断 | 多维度关联分析、智能根因诊断 | Root Cause Agent |
-| **第 5 周** | Level 2: 决策规划 | 动态质量标准生成、策略制定 | Strategy Agent |
-| **第 6 周** | Level 3: 执行协调 | 自动化测试编排、资源调度 | Execution Agent |
-| **第 7 周** | Level 3: 演化进化 | 经验沉淀、知识图谱、学习机制 | Learning Agent |
-| **第 8 周** | Level 3: 多智能体协同 | 质量协调智能体、多 Agent 协作 | Orchestrator |
+| 阶段 | 能力等级 | 核心能力 | 代表 Agent |
+|------|---------|---------|-----------|
+| **第 1-2 周** | Level 1: 数据感知 | 质量数据采集与治理、测试框架生成 | Quality Data Agent / Test Generator Agent |
+| **第 3-4 周** | Level 2: 认知分析 | 质量状态评估、风险识别、根因推断 | Risk Predictor Agent / Root Cause Agent |
+| **第 5-6 周** | Level 3: 决策规划 | 动态质量标准、策略优化 | Strategy Agent |
+| **第 7-8 周** | Level 3: 执行协调 | 自动化测试编排、资源调度、演化进化 | Execution Agent / Learning Agent |
+| **Capstone** | Level 3: 多智能体协同 | 质量协调、自主决策 | Orchestrator |
 
 **学习节奏**：每天 4-5 小时，6 天/周  
 **总时长**：200-250 小时
@@ -228,7 +225,7 @@
 │  ├─ 掌握风险等级识别（Risk Predictor Agent）               │
 │  └─ 能形成质量认知体系                                      │
 │                                                                │
-│  第 5-6 周  Level 2: 决策规划能力                         │
+│  第 5-6 周  Level 3: 决策规划能力                         │
 │  ├─ 掌握动态质量标准生成                                   │
 │  ├─ 掌握策略制定与优化（Strategy Agent）                   │
 │  └─ 能构建质量决策体系                                      │
@@ -439,7 +436,7 @@ cat docs/week2-detailed-plan.md
 | 里程碑 | 目标 | 预计时间 |
 |--------|------|----------|
 | 里程碑 1 | Level 1: 数据感知 + 测试生成 | 第 2 周 |
-| 里程碑 2 | Level 2: 认知分析 + 决策规划 | 第 4 周 |
+| 里程碑 2 | Level 2: 认知分析 + Level 3: 决策规划 | 第 4-5 周 |
 | 里程碑 3 | Level 3: 执行协调 + 多智能体协同 | 第 8 周 |
 
 ---
