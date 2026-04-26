@@ -85,7 +85,7 @@
 
 | 术语 (中文) | 术语 (英文) | 定义 | 职责说明 |
 |------------|------------|------|---------|
-| **编排器** | Orchestrator | 负责协调多个 Agent 协同工作的中央控制器 | 任务分解、流程调度 |
+| **Raft 共识层** | Raft Consensus Layer | 去中心化协调层，负责任务分发和策略决策（替代原 Orchestrator） | 共识决策、Leader 选举、状态复制 |
 | **代码解析器** | Code Parser | 解析源代码，提取结构信息和业务逻辑的组件 | AST 构建、语义分析 |
 | **测试规划器** | Test Planner | 根据源码和测试需求制定测试策略的组件 | 框架选型、范围确定 |
 | **用例生成器** | Test Case Generator | 生成具体测试用例代码的组件 | 边界值、异常场景生成 |
@@ -1952,7 +1952,7 @@ Phase 3: 智能优化（6-12 周）
 | 维度       | 说明                       |
 | -------- | ------------------------ |
 | **所属层级** | 专业 Agent 层（扩展 Agent）     |
-| **上游依赖** | Orchestrator（任务分解）       |
+| **上游依赖** | Raft Leader（任务分发）       |
 | **下游协作** | Execution Agent（执行生成的测试） |
 | **记忆层**  | RAG 检索测试模式库、最佳实践         |
 | **工具层**  | AST Parser、Lint 工具、测试执行器 |
@@ -3380,7 +3380,7 @@ ViT + Embedding 静态匹配   →       GLM-5V-Turbo 端到端理解
 
 ***
 
-## 七、与 Orchestrator 的集成
+## 七、与 Raft 共识层的集成
 
 ### 7.1 集成架构
 
@@ -3390,8 +3390,8 @@ ViT + Embedding 静态匹配   →       GLM-5V-Turbo 端到端理解
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                      Orchestrator (质量协调智能体)                       │   │
-│  │  • 理解质量目标 → 分解任务 → 协调执行                                   │   │
+│  │                      Raft 共识层 (去中心化协调)                          │   │
+│  │  • 共识决策 → 任务分发 → 状态同步（替代原 Orchestrator）                    │   │
 │  └──────────────────────────────┬────────────────────────────────────────┘   │
 │                                 │                                              │
 │                                 │ "需要为项目 X 生成自动化测试"                    │
@@ -3434,15 +3434,15 @@ ViT + Embedding 静态匹配   →       GLM-5V-Turbo 端到端理解
 ### 7.2 工作流示例
 
 ```python
-# Orchestrator 调用 Test Generator Agent 示例
-from quality_agent.orchestrator import Orchestrator
+# Raft Leader 调用 Test Generator Agent 示例
+from quality_agent.raft_leader import RaftLeader
 from quality_agent.test_generator import TestGeneratorAgent
 
 # 初始化
-orchestrator = Orchestrator()
+raft_leader = RaftLeader()
 test_agent = TestGeneratorAgent()
 
-# 任务分解
+# 共识决策后的任务分发
 task = {
     "type": "generate_tests",
     "project": "my-service",
@@ -3455,11 +3455,6 @@ task = {
 result = await test_agent.execute(task)
 
 # 验证并传递给 Execution Agent
-if result.success:
-    await orchestrator.delegate_to_execution_agent({
-        "type": "run_tests",
-        "test_files": result.generated_files,
-        "environment": "test"
     })
 ```
 

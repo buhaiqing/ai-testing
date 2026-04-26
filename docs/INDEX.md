@@ -16,6 +16,7 @@
 
 | 版本 | 日期 | 变更内容 | 变更人 |
 |-----|------|---------|--------|
+| v1.1.0 | 2026-04-26 | 新增 DYNAMIC_THRESHOLD_INCENTIVE_COMPATIBILITY.md 索引；更新 QUALITY_AGENT_ARCHITECTURE.md 版本至 v2.3.0 | - |
 | v1.0.0 | 2026-04-26 | 从 README.md 重构为 INDEX.md，明确索引定位，补充版本信息 | - |
 
 ## 规范文档
@@ -36,11 +37,19 @@
 
 | 文档 | 类型 | 版本 | 说明 |
 |-----|------|------|------|
-| [QUALITY_AGENT_ARCHITECTURE.md](./QUALITY_AGENT_ARCHITECTURE.md) | ARCH | v2.0.0 | 架构设计与安全性能 |
+| [QUALITY_AGENT_ARCHITECTURE.md](./QUALITY_AGENT_ARCHITECTURE.md) | ARCH | v2.3.0 | 架构设计与安全性能（含动态阈值与激励相容机制） |
 | [QUALITY_AGENT_EXECUTION.md](./QUALITY_AGENT_EXECUTION.md) | IMPL | v1.1.0 | 执行协调智能体（双引擎架构） |
 | [QUALITY_AGENT_TEST_GENERATOR.md](./QUALITY_AGENT_TEST_GENERATOR.md) | IMPL | v2.2.0 | 测试代码生成智能体 |
 | [QUALITY_AGENT_EVOLUTION.md](./QUALITY_AGENT_EVOLUTION.md) | ARCH | v2.0.0 | 进化机制详解 |
 | [QUALITY_AGENT_RISK_MANAGEMENT.md](./QUALITY_AGENT_RISK_MANAGEMENT.md) | IMPL | v1.0.0 | 技术风险与缓解策略 |
+| [DYNAMIC_THRESHOLD_INCENTIVE_COMPATIBILITY.md](./DYNAMIC_THRESHOLD_INCENTIVE_COMPATIBILITY.md) | ARCH | v1.0.0 | 动态阈值与激励相容机制设计（已确认） |
+
+## 安全架构文档
+
+| 文档 | 类型 | 版本 | 说明 |
+|-----|------|------|------|
+| [ZERO_TRUST_AGENT_MESH.md](./ZERO_TRUST_AGENT_MESH.md) | ARCH | v1.0.0 | 零信任 Agent 网格架构设计 |
+| [HYBRID_SECURITY_ARCHITECTURE.md](./HYBRID_SECURITY_ARCHITECTURE.md) | ARCH | v1.0.0 | 混合安全技术架构方案讨论 |
 
 ## 其他文档
 
