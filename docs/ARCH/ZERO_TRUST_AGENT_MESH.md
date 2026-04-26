@@ -8,7 +8,7 @@
 | **维护者** | Quality Agent 培养计划 |
 | **关联文档** | [QUALITY_AGENT_ARCHITECTURE.md](./QUALITY_AGENT_ARCHITECTURE.md), [AGENTS.md](../AGENTS.md) |
 
-> 🔒 **核心定位**：在去中心化共识架构基础上，构建"永不信任，始终验证"的 Agent 间安全通信与执行环境
+> 🔒 **核心定位**：在三层协作架构（函数调用/消息总线/知识共享）基础上，构建"永不信任，始终验证"的 Agent 间安全通信与执行环境
 
 ---
 
@@ -16,11 +16,11 @@
 
 ### 1.1 为什么需要零信任 Agent 网格
 
-在去中心化共识架构（Raft）中，虽然消除了单点故障，但引入了新的安全挑战：
+在三层协作架构（函数调用/消息总线/知识共享）中，虽然实现了灵活的Agent间通信，但引入了新的安全挑战：
 
 | 新风险 | 说明 | 潜在影响 |
 |-------|------|---------|
-| **恶意 Agent 注入** | 攻击者伪装成合法 Agent 加入共识网络 | 篡改共识日志、伪造任务结果 |
+| **恶意 Agent 注入** | 攻击者伪装成合法 Agent 加入协作网络 | 伪造任务结果、篡改共享知识 |
 | **横向移动** | 一个被攻破的 Agent 可以访问其他 Agent | 权限扩散、数据泄露 |
 | **通信窃听** | Agent 间明文通信被截获 | 敏感测试数据、代码泄露 |
 | **权限滥用** | Agent 拥有超出其职责的权限 | 越权操作、数据破坏 |
@@ -69,7 +69,7 @@
 
 | 现有组件 | 零信任增强 | 实现方式 |
 |---------|-----------|---------|
-| **Raft 共识层** | 节点身份验证 + 通信加密 | mTLS + SPIFFE/SPIRE |
+| **三层协作架构** | Agent身份验证 + 消息签名 + 通信加密 | mTLS + SPIFFE/SPIRE |
 | **Event Bus** | 事件签名验证 + 防篡改 | 数字签名 + 哈希链 |
 | **Agent 注册** | 自动身份颁发 + 定期轮换 | SPIFFE/SPIRE 工作负载身份 |
 | **共享记忆层** | 字段级加密 + 访问审计 | AES-256-GCM + 审计日志 |
@@ -186,7 +186,7 @@ SPIFFE ID: spiffe://quality-agent.mesh/{namespace}/{agent-type}/{instance-id}
 示例：
 - spiffe://quality-agent.mesh/prod/test-generator/agent-01
 - spiffe://quality-agent.mesh/prod/execution-agent/agent-03
-- spiffe://quality-agent.mesh/prod/raft-leader/node-01
+- spiffe://quality-agent.mesh/prod/coordinator/node-01
 ```
 
 #### 3.2.2 动态权限模型（ABAC + RBAC 混合）
@@ -234,7 +234,7 @@ def authorize_request(agent_id: str, action: str, resource: str, context: dict) 
 
 | 通信场景 | 加密方式 | 证书管理 |
 |---------|---------|---------|
-| Agent ↔ Raft Leader | mTLS | SPIRE 自动颁发 |
+| Agent ↔ 调度服务 | mTLS | SPIRE 自动颁发 |
 | Agent ↔ Event Bus | mTLS | SPIRE 自动颁发 |
 | Agent ↔ 共享记忆层 | mTLS + 字段级加密 | SPIRE + 应用层密钥 |
 | Agent ↔ 外部工具 | mTLS（如支持）或 VPN | 手动配置 |
@@ -596,7 +596,7 @@ def monitor_agent_behavior(agent_id: str):
 
 | 现有组件 | 兼容性 | 影响 | 实施建议 |
 |---------|--------|------|---------|
-| **Raft 共识层** | ✅ 完全兼容 | 增加 mTLS 开销（~5% 延迟） | 优先实施 |
+| **三层协作架构** | ✅ 完全兼容 | 增加 mTLS 开销（~5% 延迟） | 优先实施 |
 | **Event Bus** | ✅ 完全兼容 | 增加签名验证开销（~2ms/事件） | 优先实施 |
 | **Agent 实现** | ⚠️ 需适配 | 需集成 SPIFFE 客户端 | 逐步迁移 |
 | **共享记忆层** | ✅ 完全兼容 | 增加字段级加密开销 | 按需实施 |
@@ -618,7 +618,7 @@ def monitor_agent_behavior(agent_id: str):
 
 ## 九、总结
 
-零信任 Agent 网格不是对现有架构的颠覆，而是**安全增强**。它通过以下方式保护去中心化共识架构：
+零信任 Agent 网格不是对现有架构的颠覆，而是**安全增强**。它通过以下方式保护三层协作架构：
 
 1. **身份层面**：每个 Agent 都有唯一、可验证、自动轮换的身份
 2. **通信层面**：所有通信加密、签名、防篡改
@@ -626,4 +626,4 @@ def monitor_agent_behavior(agent_id: str):
 4. **权限层面**：动态、细粒度、基于风险的权限控制
 5. **审计层面**：全链路可观测、可追溯
 
-**核心价值**：即使某个 Agent 被攻破，攻击者也无法横向移动、无法篡改共识、无法窃取数据。
+**核心价值**：即使某个 Agent 被攻破，攻击者也无法横向移动、无法伪造消息、无法窃取数据。

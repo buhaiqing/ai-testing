@@ -266,7 +266,6 @@ Git 变更记录 ──────────┤                              
 | 协作场景 | 协作 Agent | 协作方式 |
 |---------|-----------|---------|
 | 失败用例反馈优化 | Test Generator Agent | 分析失败根因 → 反馈给 Test Generator 优化测试用例 |
-| 根因深入诊断 | Root Cause Agent | 初步根因 → 调用 Root Cause Agent 进行深度诊断 |
 | 风险关联分析 | Risk Predictor Agent | 测试异常模式 → 关联风险评估结果 |
 | 策略动态调整 | Strategy Agent | 分析结果 → 触发 Strategy Agent 调整测试策略 |
 | 经验沉淀学习 | Learning Agent | 分析结论 → 通过 Learning Agent 沉淀到知识库 |

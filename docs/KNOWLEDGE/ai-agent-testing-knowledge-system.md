@@ -111,10 +111,10 @@
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                    Raft 共识层 (去中心化协调)                        │    │
-│  │  • 共识决策（替代原 Orchestrator 集中式协调）                         │    │
-│  │  • 状态复制（所有节点保持一致性）                                      │    │
-│  │  • Leader 选举（故障自动切换）                                        │    │
+│  │                    Orchestrator 协调层                             │    │
+│  │  • 任务编排（多 Agent 协作调度）                                    │    │
+│  │  • 状态管理（全局状态同步）                                        │    │
+│  │  • 故障处理（异常检测与恢复）                                       │    │
 │  └──────────────────────────────┬────────────────────────────────────┘    │
 │                                 │                                             │
 │  ┌──────────────────────────────┼────────────────────────────────────┐    │
@@ -162,11 +162,11 @@
 
 | 组件 | 类型 | 核心职责 | 技术选型 |
 |-----|------|---------|---------|
-| **Raft Consensus** | 协调层 | 共识决策、状态复制、Leader 选举（替代原 Orchestrator） | Raft 协议 |
+| **Orchestrator** | 协调层 | 任务编排、多Agent协作调度、状态管理 | Orchestrator 框架 |
 | **Quality Data Agent** | 专业 Agent | 数据采集、质量指标计算、感知层 | Tool Use + Data Pipeline |
 | **Risk Predictor Agent** | 专业 Agent | 风险评估、异常检测、根因分析 | ML Model + LLM |
 | **Strategy Agent** | 专业 Agent | 动态测试策略生成、质量规划 | LLM + Rule Engine |
-| **Root Cause Agent** | 专业 Agent | 智能根因诊断、故障定位 | LLM + Knowledge Graph |
+| **Root Cause Agent** | 专业 Agent | 跨系统深度根因诊断、生产故障定位、复杂故障模式识别 | LLM + Knowledge Graph |
 | **Execution Agent** | 专业 Agent | 测试执行、资源调度、结果反馈 | Workflow Engine |
 | **Test Generator Agent** | 专业 Agent | 代码理解、测试框架生成、测试用例实现 | LLM + Code Analysis + RAG |
 | **Learning Agent** | 专业 Agent | 经验沉淀、知识图谱更新、策略优化 | RAG + Reinforcement Learning |
@@ -364,7 +364,7 @@
 │  └─ 打造质量执行体系                                        │
 │                                                                │
 │  Capstone   Level 3: 多智能体协同系统                     │
-│  ├─ Raft 共识层（去中心化协调）                         │
+│  ├─ Orchestrator 协调层（多 Agent 协作）                         │
 │  ├─ 多 Agent 协作工作流                                    │
 │  └─ 实现自主质量决策                                        │
 │                                                                │
@@ -382,7 +382,7 @@
 | **第 5 周** | Level 2: 决策规划 | 动态质量标准生成、策略制定 | Strategy Agent |
 | **第 6 周** | Level 3: 执行协调 | 自动化测试编排、资源调度 | Execution Agent |
 | **第 7 周** | Level 3: 演化进化 | 经验沉淀、知识图谱、学习机制 | Learning Agent |
-| **第 8 周** | Level 3: 多智能体协同 | Raft 共识层、多 Agent 协作、去中心化协调 | Raft Consensus |
+| **第 8 周** | Level 3: 多智能体协同 | Orchestrator 协调层、多 Agent 协作 | Orchestrator |
 
 **学习节奏**：每天 4-5 小时，6 天/周  
 **总时长**：200-250 小时

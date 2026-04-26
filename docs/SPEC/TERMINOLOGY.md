@@ -8,8 +8,8 @@
 | **文档类型** | SPEC |
 | **版本** | v1.0.0 |
 | **最后更新** | 2026-04-26 |
-| **维护者** | Quality Agent 培养计划 |
-| **关联文档** | AGENTS.md |
+| **维护者** | 质量智能中台团队 |
+| **关联文档** | [AGENTS.md](../../AGENTS.md), [VERSIONING.md](./VERSIONING.md) |
 
 ---
 
@@ -35,7 +35,8 @@
 
 | 术语 | 英文对照 | 定义 |
 |-----|---------|------|
-| **Raft 共识层** | Raft Consensus Layer | 去中心化共识协调层，负责任务分发、策略决策、状态复制（替代原 Orchestrator 集中式协调） |
+| **A2A协议** | A2A Protocol | ⚠️ 已废弃，Agent间通信改用三层协作架构 |
+| **三层协作架构** | Three-Layer Collaboration Architecture | 函数调用（同步）+ 消息总线（异步）+ 知识共享（状态）的分层协作模式 |
 | **专业Agent** | Specialist Agent | 具备特定领域能力的智能体，如数据采集、风险评估、测试执行 |
 | **扩展Agent** | Extension Agent | 按需加载的辅助智能体，如策略规划、根因诊断、学习进化 |
 | **共享记忆层** | Shared Memory Layer | 多Agent共享的知识存储与检索层，包含向量存储、规则引擎、知识图谱 |
@@ -46,6 +47,14 @@
 | **进化层** | Evolution Layer | 负责经验沉淀、知识更新、策略优化的层次 |
 | **动态阈值引擎** | Dynamic Threshold Engine | 负责动态阈值计算、风险分级评估、环境因子感知的核心引擎 |
 | **激励相容引擎** | Incentive Compatibility Engine | 负责Agent效用计算、信誉管理、资源分配策略的核心引擎 |
+| **统一部署抽象层** | Deployment Abstraction Layer | 屏蔽底层部署差异（K8S/Docker）的统一接口层，确保核心功能一致性 |
+| **部署适配器** | Deployment Adapter | 针对特定部署形态（K8S Operator或Docker API）的具体实现 |
+| **声明式Agent定义** | Declarative Agent Definition | 以YAML/JSON形式声明Agent配置，由部署抽象层解释执行 |
+| **服务注册与发现** | Service Registry and Discovery | 分布式系统中服务实例的动态注册与查找机制 |
+| **限流熔断** | Rate Limiting and Circuit Breaker | 保护系统不被过载和级联故障击垮的保护机制 |
+| **幂等性** | Idempotency | 同一操作多次执行与单次执行结果相同的特性 |
+| **最终一致性** | Eventual Consistency | 允许短暂不一致但最终达到一致的分布式数据同步策略 |
+| **Saga模式** | Saga Pattern | 分布式事务的补偿模式，通过一系列本地事务实现跨服务数据一致性 |
 
 ## 能力等级术语
 
@@ -79,5 +88,7 @@
 
 | 版本 | 日期 | 变更内容 | 变更人 |
 |-----|------|---------|--------|
+| v1.3.0 | 2026-04-26 | 新增分布式系统相关术语（服务注册发现、限流熔断、幂等性、最终一致性、Saga模式） | - |
+| v1.2.0 | 2026-04-26 | 新增统一部署抽象层、部署适配器、声明式Agent定义术语 | - |
 | v1.1.0 | 2026-04-26 | 新增动态阈值、激励相容、信誉系统、动态阈值引擎、激励相容引擎术语 | - |
 | v1.0.0 | 2026-04-26 | 初始版本，建立核心术语体系 | - |
